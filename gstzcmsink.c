@@ -171,6 +171,7 @@ gst_zcmsink_init (GstZcmsink * zcmsink)
   zcmsink->url = g_string_new("");
   zcmsink->channel = g_string_new("GSTREAMER_DATA");
   zcmsink->zcm = NULL;
+  memset(&zcmsink->img, 0, sizeof(zcmsink->img));
 }
 
 void
@@ -264,6 +265,19 @@ gst_zcmsink_show_frame (GstVideoSink * sink, GstBuffer * buf)
     if (!gst_video_frame_map (&src, &zcmsink->info, buf, GST_MAP_READ)) {
       GST_WARNING_OBJECT (zcmsink, "could not map image");
       return GST_FLOW_OK;
+    }
+
+    gint num_strides = GST_VIDEO_FRAME_N_PLANES (&src);
+    if (num_strides != zcmsink->img.num_strides) {
+      if (zcmsink->img.num_strides != 0) {
+        free (zcmsink->img.stride);
+      }
+      zcmsink->img.stride = malloc (sizeof(int32_t) * num_strides);
+      zcmsink->img.num_strides = num_strides;
+    }
+
+    for (size_t i = 0; i < num_strides; ++i) {
+      zcmsink->img.stride[i] = GST_VIDEO_FRAME_PLANE_STRIDE (&src, i);
     }
 
     GstMapInfo info;
