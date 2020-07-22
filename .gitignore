@@ -1,6 +1,5 @@
 ## Build temporaries
-*.so
-*.o
+build/
 
 ## Editor temporaries
 *~

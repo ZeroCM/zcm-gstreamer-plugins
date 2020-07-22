@@ -24,6 +24,7 @@
 #include <gst/video/gstvideosink.h>
 
 #include <zcm/zcm.h>
+#include "image_t.h"
 
 G_BEGIN_DECLS
 
@@ -39,9 +40,15 @@ typedef struct _GstZcmsinkClass GstZcmsinkClass;
 struct _GstZcmsink
 {
   GstVideoSink base_zcmsink;
+
+  // Privates
+  zcm_t* zcm;
+  GstVideoInfo info;
+  image_t img;
+
+  // Properties
   GString* url;
   GString* channel;
-  zcm_t* zcm;
 };
 
 struct _GstZcmsinkClass

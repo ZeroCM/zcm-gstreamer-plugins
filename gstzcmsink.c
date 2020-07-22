@@ -18,9 +18,9 @@
  */
 /**
  * SECTION:element-gstzcmsink
+ * @title: zcmsink
  *
- * The zcmsink element sinks data from a gstreamer pipeline into a
- * zcm transport
+ * ZcmSink sinks data from a gstreamer pipeline into a zcm transport
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -30,6 +30,10 @@
  * Sinks fake data into the zcm transport defined by ZCM_DEFAULT_URL
  * </refsect2>
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <gst/gst.h>
 #include <gst/video/video.h>
@@ -83,16 +87,53 @@ enum
                         "  RGB16 }")
 
 
+/* Private members */
+
+static void
+reinit_zcm (GstZcmsink * zcmsink)
+{
+  if (zcmsink->zcm) {
+      zcm_stop(zcmsink->zcm);
+      zcm_destroy(zcmsink->zcm);
+  }
+  zcmsink->zcm = zcm_create(zcmsink->url->str);
+  zcm_start(zcmsink->zcm);
+}
+
+
 /* class initialization */
 
 G_DEFINE_TYPE_WITH_CODE (GstZcmsink, gst_zcmsink, GST_TYPE_VIDEO_SINK,
     GST_DEBUG_CATEGORY_INIT (gst_zcmsink_debug_category, "zcmsink", 0,
         "debug category for zcmsink element"));
 
+static gboolean
+gst_zcmsink_setcaps (GstBaseSink * bsink, GstCaps * caps)
+{
+  GstZcmsink *zcmsink = GST_ZCMSINK (bsink);
+
+  GstVideoInfo info;
+  if (!gst_video_info_from_caps (&info, caps)) {
+    GST_DEBUG_OBJECT (zcmsink,
+        "Could not get video info from caps %" GST_PTR_FORMAT, caps);
+    return FALSE;
+  }
+
+  zcmsink->img.width = info.width;
+  zcmsink->img.height = info.height;
+
+  zcmsink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
+
+  zcmsink->info = info;
+
+  return TRUE;
+}
+
 static void
 gst_zcmsink_class_init (GstZcmsinkClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
   GstVideoSinkClass *video_sink_class = GST_VIDEO_SINK_CLASS (klass);
 
   /* Setting up pads and setting metadata should be moved to
@@ -102,10 +143,11 @@ gst_zcmsink_class_init (GstZcmsinkClass * klass)
           gst_caps_from_string (VIDEO_SINK_CAPS)));
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
-      "GstZcmSink", "Generic",
+      "ZcmSink", "Generic",
       "Sinks data from a pipeline into a zcm transport",
       "ZeroCM Team <www.zcm-project.org>");
 
+  gstbasesink_class->set_caps = gst_zcmsink_setcaps;
   gobject_class->set_property = gst_zcmsink_set_property;
   gobject_class->get_property = gst_zcmsink_get_property;
   gobject_class->dispose = gst_zcmsink_dispose;
@@ -129,17 +171,6 @@ gst_zcmsink_init (GstZcmsink * zcmsink)
   zcmsink->url = g_string_new("");
   zcmsink->channel = g_string_new("GSTREAMER_DATA");
   zcmsink->zcm = NULL;
-}
-
-static void
-reinit_zcm (GstZcmsink * zcmsink)
-{
-  if (zcmsink->zcm) {
-      zcm_stop(zcmsink->zcm);
-      zcm_destroy(zcmsink->zcm);
-  }
-  zcmsink->zcm = zcm_create(zcmsink->url->str);
-  zcm_start(zcmsink->zcm);
 }
 
 void
@@ -220,16 +251,35 @@ gst_zcmsink_show_frame (GstVideoSink * sink, GstBuffer * buf)
 
   GST_DEBUG_OBJECT (zcmsink, "show_frame");
 
+  if (!zcmsink->zcm) reinit_zcm(zcmsink);
+
   if (gst_buffer_n_memory (buf) != 1) {
     GST_ERROR_OBJECT (zcmsink, "Support only 1 memory per buffer");
     return GST_FLOW_ERROR;
   }
 
   if (zcmsink->zcm) {
+
+    GstVideoFrame src;
+    if (!gst_video_frame_map (&src, &zcmsink->info, buf, GST_MAP_READ)) {
+      GST_WARNING_OBJECT (zcmsink, "could not map image");
+      return GST_FLOW_OK;
+    }
+
     GstMapInfo info;
-    gst_buffer_map (buf, &info, GST_MAP_READ);
-    zcm_publish (zcmsink->zcm, zcmsink->channel->str, info.data, info.size);
+    if (!gst_buffer_map (buf, &info, GST_MAP_READ)) {
+      GST_WARNING_OBJECT (zcmsink, "could not map buffer info");
+      gst_video_frame_unmap (&src);
+      return GST_FLOW_OK;
+    }
+
+    zcmsink->img.size = info.size;
+    zcmsink->img.data = info.data;
+
+    image_t_publish (zcmsink->zcm, zcmsink->channel->str, &zcmsink->img);
+
     gst_buffer_unmap (buf, &info);
+    gst_video_frame_unmap (&src);
   }
 
   return GST_FLOW_OK;
