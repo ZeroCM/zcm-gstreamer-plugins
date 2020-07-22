@@ -242,6 +242,11 @@ gst_zcmsink_finalize (GObject * object)
   zcm_destroy(zcmsink->zcm);
   zcmsink->zcm = NULL;
 
+  if (zcmsink->img.stride) {
+    free (zcmsink->img.stride);
+    zcmsink->img.num_strides = 0;
+  }
+
   G_OBJECT_CLASS (gst_zcmsink_parent_class)->finalize (object);
 }
 
