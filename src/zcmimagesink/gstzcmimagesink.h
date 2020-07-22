@@ -17,8 +17,8 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef _GST_ZCMSINK_H_
-#define _GST_ZCMSINK_H_
+#ifndef _GST_ZCMIMAGESINK_H_
+#define _GST_ZCMIMAGESINK_H_
 
 #include <gst/video/video.h>
 #include <gst/video/gstvideosink.h>
@@ -28,18 +28,18 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_ZCMSINK   (gst_zcmsink_get_type())
-#define GST_ZCMSINK(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ZCMSINK,GstZcmsink))
-#define GST_ZCMSINK_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ZCMSINK,GstZcmsinkClass))
-#define GST_IS_ZCMSINK(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ZCMSINK))
-#define GST_IS_ZCMSINK_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ZCMSINK))
+#define GST_TYPE_ZCMIMAGESINK (gst_zcmimagesink_get_type())
+#define GST_ZCMIMAGESINK(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ZCMIMAGESINK,GstZcmImageSink))
+#define GST_ZCMIMAGESINK_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ZCMIMAGESINK,GstZcmImageSinkClass))
+#define GST_IS_ZCMIMAGESINK(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ZCMIMAGESINK))
+#define GST_IS_ZCMIMAGESINK_CLASS(obj) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ZCMIMAGESINK))
 
-typedef struct _GstZcmsink GstZcmsink;
-typedef struct _GstZcmsinkClass GstZcmsinkClass;
+typedef struct _GstZcmImageSink GstZcmImageSink;
+typedef struct _GstZcmImageSinkClass GstZcmImageSinkClass;
 
-struct _GstZcmsink
+struct _GstZcmImageSink
 {
-  GstVideoSink base_zcmsink;
+  GstVideoSink base_zcmimagesink;
 
   // Privates
   zcm_t* zcm;
@@ -51,12 +51,12 @@ struct _GstZcmsink
   GString* channel;
 };
 
-struct _GstZcmsinkClass
+struct _GstZcmImageSinkClass
 {
-  GstVideoSinkClass base_zcmsink_class;
+  GstVideoSinkClass base_zcmimagesink_class;
 };
 
-GType gst_zcmsink_get_type (void);
+GType gst_zcmimagesink_get_type (void);
 
 G_END_DECLS
 

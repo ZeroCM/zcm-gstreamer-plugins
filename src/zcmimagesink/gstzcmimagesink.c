@@ -17,15 +17,15 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-gstzcmsink
- * @title: zcmsink
+ * SECTION:element-gstzcmimagesink
+ * @title: zcmimagesink
  *
- * ZcmSink sinks data from a gstreamer pipeline into a zcm transport
+ * ZcmImageSink sinks data from a gstreamer pipeline into a zcm transport
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch-1.0 -v fakesrc ! zcmsink
+ * gst-launch-1.0 -v fakesrc ! zcmimagesink
  * ]|
  * Sinks fake data into the zcm transport defined by ZCM_DEFAULT_URL
  * </refsect2>
@@ -38,22 +38,22 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideosink.h>
-#include "gstzcmsink.h"
+#include "gstzcmimagesink.h"
 
-GST_DEBUG_CATEGORY_STATIC (gst_zcmsink_debug_category);
-#define GST_CAT_DEFAULT gst_zcmsink_debug_category
+GST_DEBUG_CATEGORY_STATIC (gst_zcmimagesink_debug_category);
+#define GST_CAT_DEFAULT gst_zcmimagesink_debug_category
 
 /* prototypes */
 
 
-static void gst_zcmsink_set_property (GObject * object,
+static void gst_zcmimagesink_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
-static void gst_zcmsink_get_property (GObject * object,
+static void gst_zcmimagesink_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
-static void gst_zcmsink_dispose (GObject * object);
-static void gst_zcmsink_finalize (GObject * object);
+static void gst_zcmimagesink_dispose (GObject * object);
+static void gst_zcmimagesink_finalize (GObject * object);
 
-static GstFlowReturn gst_zcmsink_show_frame (GstVideoSink * video_sink,
+static GstFlowReturn gst_zcmimagesink_show_frame (GstVideoSink * video_sink,
     GstBuffer * buf);
 
 enum
@@ -90,47 +90,47 @@ enum
 /* Private members */
 
 static void
-reinit_zcm (GstZcmsink * zcmsink)
+reinit_zcm (GstZcmImageSink * zcmimagesink)
 {
-  if (zcmsink->zcm) {
-      zcm_stop(zcmsink->zcm);
-      zcm_destroy(zcmsink->zcm);
+  if (zcmimagesink->zcm) {
+      zcm_stop(zcmimagesink->zcm);
+      zcm_destroy(zcmimagesink->zcm);
   }
-  zcmsink->zcm = zcm_create(zcmsink->url->str);
-  zcm_start(zcmsink->zcm);
+  zcmimagesink->zcm = zcm_create(zcmimagesink->url->str);
+  zcm_start(zcmimagesink->zcm);
 }
 
 
 /* class initialization */
 
-G_DEFINE_TYPE_WITH_CODE (GstZcmsink, gst_zcmsink, GST_TYPE_VIDEO_SINK,
-    GST_DEBUG_CATEGORY_INIT (gst_zcmsink_debug_category, "zcmsink", 0,
-        "debug category for zcmsink element"));
+G_DEFINE_TYPE_WITH_CODE (GstZcmImageSink, gst_zcmimagesink, GST_TYPE_VIDEO_SINK,
+    GST_DEBUG_CATEGORY_INIT (gst_zcmimagesink_debug_category, "zcmimagesink", 0,
+        "debug category for zcmimagesink element"));
 
 static gboolean
-gst_zcmsink_setcaps (GstBaseSink * bsink, GstCaps * caps)
+gst_zcmimagesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (bsink);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (bsink);
 
   GstVideoInfo info;
   if (!gst_video_info_from_caps (&info, caps)) {
-    GST_DEBUG_OBJECT (zcmsink,
+    GST_DEBUG_OBJECT (zcmimagesink,
         "Could not get video info from caps %" GST_PTR_FORMAT, caps);
     return FALSE;
   }
 
-  zcmsink->img.width = info.width;
-  zcmsink->img.height = info.height;
+  zcmimagesink->img.width = info.width;
+  zcmimagesink->img.height = info.height;
 
-  zcmsink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
+  zcmimagesink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
 
-  zcmsink->info = info;
+  zcmimagesink->info = info;
 
   return TRUE;
 }
 
 static void
-gst_zcmsink_class_init (GstZcmsinkClass * klass)
+gst_zcmimagesink_class_init (GstZcmImageSinkClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
@@ -147,12 +147,12 @@ gst_zcmsink_class_init (GstZcmsinkClass * klass)
       "Sinks data from a pipeline into a zcm transport",
       "ZeroCM Team <www.zcm-project.org>");
 
-  gstbasesink_class->set_caps = gst_zcmsink_setcaps;
-  gobject_class->set_property = gst_zcmsink_set_property;
-  gobject_class->get_property = gst_zcmsink_get_property;
-  gobject_class->dispose = gst_zcmsink_dispose;
-  gobject_class->finalize = gst_zcmsink_finalize;
-  video_sink_class->show_frame = GST_DEBUG_FUNCPTR (gst_zcmsink_show_frame);
+  gstbasesink_class->set_caps = gst_zcmimagesink_setcaps;
+  gobject_class->set_property = gst_zcmimagesink_set_property;
+  gobject_class->get_property = gst_zcmimagesink_get_property;
+  gobject_class->dispose = gst_zcmimagesink_dispose;
+  gobject_class->finalize = gst_zcmimagesink_finalize;
+  video_sink_class->show_frame = GST_DEBUG_FUNCPTR (gst_zcmimagesink_show_frame);
 
   g_object_class_install_property (gobject_class, PROP_ZCM_URL,
           g_param_spec_string ("url", "Zcm transport url",
@@ -166,29 +166,29 @@ gst_zcmsink_class_init (GstZcmsinkClass * klass)
 }
 
 static void
-gst_zcmsink_init (GstZcmsink * zcmsink)
+gst_zcmimagesink_init (GstZcmImageSink * zcmimagesink)
 {
-  zcmsink->url = g_string_new("");
-  zcmsink->channel = g_string_new("GSTREAMER_DATA");
-  zcmsink->zcm = NULL;
-  memset(&zcmsink->img, 0, sizeof(zcmsink->img));
+  zcmimagesink->url = g_string_new("");
+  zcmimagesink->channel = g_string_new("GSTREAMER_DATA");
+  zcmimagesink->zcm = NULL;
+  memset(&zcmimagesink->img, 0, sizeof(zcmimagesink->img));
 }
 
 void
-gst_zcmsink_set_property (GObject * object, guint property_id,
+gst_zcmimagesink_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (object);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (object);
 
-  GST_DEBUG_OBJECT (zcmsink, "set_property");
+  GST_DEBUG_OBJECT (zcmimagesink, "set_property");
 
   switch (property_id) {
     case PROP_ZCM_URL:
-      g_string_assign (zcmsink->url, g_value_get_string (value));
-      reinit_zcm(zcmsink);
+      g_string_assign (zcmimagesink->url, g_value_get_string (value));
+      reinit_zcm(zcmimagesink);
       break;
     case PROP_CHANNEL:
-      g_string_assign (zcmsink->channel, g_value_get_string (value));
+      g_string_assign (zcmimagesink->channel, g_value_get_string (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -197,19 +197,19 @@ gst_zcmsink_set_property (GObject * object, guint property_id,
 }
 
 void
-gst_zcmsink_get_property (GObject * object, guint property_id,
+gst_zcmimagesink_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (object);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (object);
 
-  GST_DEBUG_OBJECT (zcmsink, "get_property");
+  GST_DEBUG_OBJECT (zcmimagesink, "get_property");
 
   switch (property_id) {
     case PROP_ZCM_URL:
-      g_value_set_string (value, zcmsink->url->str);
+      g_value_set_string (value, zcmimagesink->url->str);
       break;
     case PROP_CHANNEL:
-      g_value_set_string (value, zcmsink->channel->str);
+      g_value_set_string (value, zcmimagesink->channel->str);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -218,84 +218,84 @@ gst_zcmsink_get_property (GObject * object, guint property_id,
 }
 
 void
-gst_zcmsink_dispose (GObject * object)
+gst_zcmimagesink_dispose (GObject * object)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (object);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (object);
 
-  GST_DEBUG_OBJECT (zcmsink, "dispose");
+  GST_DEBUG_OBJECT (zcmimagesink, "dispose");
 
   /* clean up as possible.  may be called multiple times */
 
-  G_OBJECT_CLASS (gst_zcmsink_parent_class)->dispose (object);
+  G_OBJECT_CLASS (gst_zcmimagesink_parent_class)->dispose (object);
 }
 
 void
-gst_zcmsink_finalize (GObject * object)
+gst_zcmimagesink_finalize (GObject * object)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (object);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (object);
 
-  GST_DEBUG_OBJECT (zcmsink, "finalize");
+  GST_DEBUG_OBJECT (zcmimagesink, "finalize");
 
   /* clean up object here */
 
-  zcm_stop(zcmsink->zcm);
-  zcm_destroy(zcmsink->zcm);
-  zcmsink->zcm = NULL;
+  zcm_stop(zcmimagesink->zcm);
+  zcm_destroy(zcmimagesink->zcm);
+  zcmimagesink->zcm = NULL;
 
-  if (zcmsink->img.stride) {
-    free (zcmsink->img.stride);
-    zcmsink->img.num_strides = 0;
+  if (zcmimagesink->img.stride) {
+    free (zcmimagesink->img.stride);
+    zcmimagesink->img.num_strides = 0;
   }
 
-  G_OBJECT_CLASS (gst_zcmsink_parent_class)->finalize (object);
+  G_OBJECT_CLASS (gst_zcmimagesink_parent_class)->finalize (object);
 }
 
 static GstFlowReturn
-gst_zcmsink_show_frame (GstVideoSink * sink, GstBuffer * buf)
+gst_zcmimagesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
 {
-  GstZcmsink *zcmsink = GST_ZCMSINK (sink);
+  GstZcmImageSink *zcmimagesink = GST_ZCMIMAGESINK (sink);
 
-  GST_DEBUG_OBJECT (zcmsink, "show_frame");
+  GST_DEBUG_OBJECT (zcmimagesink, "show_frame");
 
-  if (!zcmsink->zcm) reinit_zcm(zcmsink);
+  if (!zcmimagesink->zcm) reinit_zcm(zcmimagesink);
 
   if (gst_buffer_n_memory (buf) != 1) {
-    GST_ERROR_OBJECT (zcmsink, "Support only 1 memory per buffer");
+    GST_ERROR_OBJECT (zcmimagesink, "Support only 1 memory per buffer");
     return GST_FLOW_ERROR;
   }
 
-  if (zcmsink->zcm) {
+  if (zcmimagesink->zcm) {
 
     GstVideoFrame src;
-    if (!gst_video_frame_map (&src, &zcmsink->info, buf, GST_MAP_READ)) {
-      GST_WARNING_OBJECT (zcmsink, "could not map image");
+    if (!gst_video_frame_map (&src, &zcmimagesink->info, buf, GST_MAP_READ)) {
+      GST_WARNING_OBJECT (zcmimagesink, "could not map image");
       return GST_FLOW_OK;
     }
 
     gint num_strides = GST_VIDEO_FRAME_N_PLANES (&src);
-    if (num_strides != zcmsink->img.num_strides) {
-      if (zcmsink->img.num_strides != 0) {
-        free (zcmsink->img.stride);
+    if (num_strides != zcmimagesink->img.num_strides) {
+      if (zcmimagesink->img.num_strides != 0) {
+        free (zcmimagesink->img.stride);
       }
-      zcmsink->img.stride = malloc (sizeof(int32_t) * num_strides);
-      zcmsink->img.num_strides = num_strides;
+      zcmimagesink->img.stride = malloc (sizeof(int32_t) * num_strides);
+      zcmimagesink->img.num_strides = num_strides;
     }
 
     for (size_t i = 0; i < num_strides; ++i) {
-      zcmsink->img.stride[i] = GST_VIDEO_FRAME_PLANE_STRIDE (&src, i);
+      zcmimagesink->img.stride[i] = GST_VIDEO_FRAME_PLANE_STRIDE (&src, i);
     }
 
     GstMapInfo info;
     if (!gst_buffer_map (buf, &info, GST_MAP_READ)) {
-      GST_WARNING_OBJECT (zcmsink, "could not map buffer info");
+      GST_WARNING_OBJECT (zcmimagesink, "could not map buffer info");
       gst_video_frame_unmap (&src);
       return GST_FLOW_OK;
     }
 
-    zcmsink->img.size = info.size;
-    zcmsink->img.data = info.data;
+    zcmimagesink->img.size = info.size;
+    zcmimagesink->img.data = info.data;
 
-    image_t_publish (zcmsink->zcm, zcmsink->channel->str, &zcmsink->img);
+    image_t_publish (zcmimagesink->zcm, zcmimagesink->channel->str, &zcmimagesink->img);
 
     gst_buffer_unmap (buf, &info);
     gst_video_frame_unmap (&src);
@@ -307,8 +307,8 @@ gst_zcmsink_show_frame (GstVideoSink * sink, GstBuffer * buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "zcmsink", GST_RANK_NONE,
-      GST_TYPE_ZCMSINK);
+  return gst_element_register (plugin, "zcmimagesink", GST_RANK_NONE,
+      GST_TYPE_ZCMIMAGESINK);
 }
 
 #ifndef VERSION
@@ -326,7 +326,7 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    zcmsink,
+    zcmimagesink,
     "Sinks data from a pipeline into a zcm transport",
     plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)
 
