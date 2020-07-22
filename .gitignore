@@ -1,0 +1,12 @@
+## Build temporaries
+*.so
+*.o
+
+## Editor temporaries
+*~
+\#*#
+.#*
+*.ignore
+*.swp
+tags
+/.vscode
