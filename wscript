@@ -4,6 +4,7 @@ def configure(ctx):
     ctx.check_cfg(package='gstreamer-1.0', args='--cflags --libs', uselib_store='gstreamer')
     ctx.check_cfg(package='gstreamer-video-1.0', args='--cflags --libs',
                   uselib_store='gstreamer_video')
+    ctx.env.GSTREAMER_PLUGINS = True
 
 def build(ctx):
 
@@ -23,16 +24,20 @@ def build(ctx):
                       relative_trick = True)
 
     ctx.zcmgen(name = 'zcm_gstreamer_plugins_zcmtypes',
-               lang = ['c_shlib'],
+               lang = ['c_shlib', 'cpp'],
                build = True,
                source = ctx.path.ant_glob('**/*.zcm'))
 
     DEPS = ['default', 'zcm', 'gstreamer', 'gstreamer_video',
-            'zcm_gstreamer_plugins_zcmtypes_c_shlib']
+            'zcm_gstreamer_plugins_zcmtypes_cpp']
     THIS_LIB = 'zcm_gstreamer_plugins'
 
-    source = ctx.path.ant_glob('**/*.c', excl='test')
-    ctx.shlib(target   = THIS_LIB,
-              use      = DEPS,
+    ctx(target          = THIS_LIB,
+        use             = DEPS,
+        export_includes = [ srcpath ])
+
+    source = ctx.path.ant_glob('src/**/*.c', excl='test')
+    ctx.shlib(target   = THIS_LIB + '_plugin',
+              use      = DEPS + ['zcm_gstreamer_plugins_zcmtypes_c_shlib'],
               source   = source,
               includes = [ srcpath, bldpath ])
