@@ -24,7 +24,7 @@
 #include <gst/video/gstvideosink.h>
 
 #include <zcm/zcm.h>
-#include "image_t.h"
+#include "zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
 
 G_BEGIN_DECLS
 
@@ -44,7 +44,7 @@ struct _GstZcmImageSink
   // Privates
   zcm_t* zcm;
   GstVideoInfo info;
-  image_t img;
+  zcm_gstreamer_plugins_image_t img;
 
   // Properties
   GString* url;

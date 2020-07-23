@@ -1,3 +1,5 @@
+package zcm_gstreamer_plugins;
+
 struct image_t
 {
     int64_t  utime;

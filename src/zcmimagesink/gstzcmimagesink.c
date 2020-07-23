@@ -295,7 +295,7 @@ gst_zcmimagesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
     zcmimagesink->img.size = info.size;
     zcmimagesink->img.data = info.data;
 
-    image_t_publish (zcmimagesink->zcm, zcmimagesink->channel->str, &zcmimagesink->img);
+    zcm_gstreamer_plugins_image_t_publish (zcmimagesink->zcm, zcmimagesink->channel->str, &zcmimagesink->img);
 
     gst_buffer_unmap (buf, &info);
     gst_video_frame_unmap (&src);
