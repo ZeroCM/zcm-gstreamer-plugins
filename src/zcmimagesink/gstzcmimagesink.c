@@ -122,7 +122,17 @@ gst_zcmimagesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
   zcmimagesink->img.width = info.width;
   zcmimagesink->img.height = info.height;
 
+  GstVideoFormat pixelformat = GST_VIDEO_INFO_FORMAT(&info);
   zcmimagesink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
+  if (zcmimagesink->img.pixelformat == 0) {
+    switch (pixelformat) {
+      case GST_VIDEO_FORMAT_RGBA:
+        zcmimagesink->img.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA;
+        break;
+      default:
+        break;
+    }
+  }
 
   zcmimagesink->info = info;
 
