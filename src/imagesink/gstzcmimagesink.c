@@ -153,7 +153,7 @@ gst_zcmimagesink_class_init (GstZcmImageSinkClass * klass)
           gst_caps_from_string (VIDEO_SINK_CAPS)));
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
-      "ZcmSink", "Generic",
+      "ZcmImageSink", "Generic",
       "Sinks data from a pipeline into a zcm transport",
       "ZeroCM Team <www.zcm-project.org>");
 

@@ -1,0 +1,7 @@
+#! /usr/bin/env python
+
+def build(ctx):
+    ctx.zcmgen(name = 'zcm_gstreamer_plugins_zcmtypes',
+               lang = ['c_shlib', 'cpp'],
+               build = True,
+               source = ctx.path.ant_glob('**/*.zcm'))

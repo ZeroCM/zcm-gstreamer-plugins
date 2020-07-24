@@ -8,12 +8,12 @@ def configure(ctx):
 
 def build(ctx):
 
-    bldpath = ctx.path.get_bld().abspath()
-    srcpath = ctx.path.get_src().abspath()
+    ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT = ctx.path.get_src().abspath()
 
     ctx(rule = 'OUTPUT=$(cd %s && git rev-parse HEAD && \
                ((git tag --contains ; echo "<no-tag>") | head -n1) \
-                && git diff) && echo "$OUTPUT" > ${TGT}' % (srcpath),
+                && git diff) && echo "$OUTPUT" > ${TGT}' %
+                (ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT),
         target = 'zcm_gstreamer_plugins.gitid',
         always = True)
 
@@ -23,21 +23,4 @@ def build(ctx):
                       cwd = ctx.srcnode,
                       relative_trick = True)
 
-    ctx.zcmgen(name = 'zcm_gstreamer_plugins_zcmtypes',
-               lang = ['c_shlib', 'cpp'],
-               build = True,
-               source = ctx.path.ant_glob('**/*.zcm'))
-
-    DEPS = ['default', 'zcm', 'gstreamer', 'gstreamer_video',
-            'zcm_gstreamer_plugins_zcmtypes_cpp']
-    THIS_LIB = 'zcm_gstreamer_plugins'
-
-    ctx(target          = THIS_LIB,
-        use             = DEPS,
-        export_includes = [ srcpath ])
-
-    source = ctx.path.ant_glob('src/**/*.c', excl='test')
-    ctx.shlib(target   = THIS_LIB + '_plugin',
-              use      = DEPS + ['zcm_gstreamer_plugins_zcmtypes_c_shlib'],
-              source   = source,
-              includes = [ srcpath, bldpath ])
+    ctx.recurse('src')

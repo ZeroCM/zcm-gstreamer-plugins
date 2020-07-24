@@ -24,7 +24,7 @@
 #include <gst/video/gstvideosink.h>
 
 #include <zcm/zcm.h>
-#include "zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
+#include "zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
 
 G_BEGIN_DECLS
 
