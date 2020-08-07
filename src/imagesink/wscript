@@ -13,5 +13,5 @@ def build(ctx):
 
     ctx(rule = 'cp ${SRC} ${TGT}',
         source = 'libgstzcmimagesink.so',
-        target = 'gstzcmimagesink.so',
+        target = 'plugin/gstzcmimagesink.so',
         color = 'PINK')
