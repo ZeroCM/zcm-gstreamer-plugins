@@ -103,7 +103,7 @@ static void
 handler (const zcm_recv_buf_t* rbuf, const char* channel,
          const zcm_gstreamer_plugins_snap_t* msg, void* usr)
 {
-  GstZcmImageSink* zcmsnap = (GstZcmImageSink*) usr;
+  GstZcmSnap* zcmsnap = (GstZcmSnap*) usr;
   if (zcmsnap->last_debounce != msg->debounce) {
     zcmsnap->last_debounce = msg->debounce;
     pthread_mutex_lock(&zcmsnap->mutex);
@@ -113,28 +113,41 @@ handler (const zcm_recv_buf_t* rbuf, const char* channel,
 }
 
 static void
-reinit_zcm (GstZcmImageSink * zcmsnap)
+unsubscribe (GstZcmSnap* zcmsnap)
 {
-  if (zcmsnap->zcm) {
-    if (sub) {
-      zcm_gstreamer_plugins_snap_t_unsubscribe(zcmsnap->zcm, zcmsnap->sub);
-    }
-    zcm_stop(zcmsnap->zcm);
-    zcm_destroy(zcmsnap->zcm);
+  assert(zcmsnap->zcm);
+  if (zcmsnap->sub) {
+    zcm_gstreamer_plugins_snap_t_unsubscribe(zcmsnap->zcm, zcmsnap->sub);
+    zcmsnap->sub = NULL;
   }
-  zcmsnap->zcm = zcm_create(zcmsnap->url->str);
-  sub = zcm_gstreamer_plugins_snap_t_subscribe(zcmsnap->zcm, zcmimagesink->channel->str, &handler, zcmsnap);
-  zcm_start(zcmsnap->zcm);
 }
 
 static void
-reinit_subscription (GstZcmImageSink * zcmsnap)
+subscribe (GstZcmSnap* zcmsnap)
 {
   assert(zcmsnap->zcm);
-  if (sub) {
-    zcm_gstreamer_plugins_snap_t_unsubscribe(zcmsnap->zcm, zcmsnap->sub);
+  unsubscribe(zcmsnap);
+  zcmsnap->sub = zcm_gstreamer_plugins_snap_t_subscribe(zcmsnap->zcm, zcmsnap->channel->str, &handler, zcmsnap);
+}
+
+static void
+destroy_zcm (GstZcmSnap* zcmsnap)
+{
+  if (zcmsnap->zcm) {
+    unsubscribe(zcmsnap);
+    zcm_stop(zcmsnap->zcm);
+    zcm_destroy(zcmsnap->zcm);
+    zcmsnap->zcm = NULL;
   }
-  sub = zcm_gstreamer_plugins_snap_t_subscribe(zcmsnap->zcm, zcmimagesink->channel->str, &handler, zcmsnap);
+}
+
+static void
+init_zcm (GstZcmSnap* zcmsnap)
+{
+  destroy_zcm(zcmsnap);
+  zcmsnap->zcm = zcm_create(zcmsnap->url->str);
+  subscribe(zcmsnap);
+  zcm_start(zcmsnap->zcm);
 }
 
 /* class initialization */
@@ -189,17 +202,22 @@ gst_zcm_snap_class_init (GstZcmSnapClass * klass)
 }
 
 static void
-gst_zcm_snap_init (GstZcmSnap * zcmsnap)
+gst_zcm_snap_init (GstZcmSnap* zcmsnap)
 {
-  zcmsnap->url = g_string_new("");
-  zcmsnap->channel = g_string_new("GSTREAMER_SNAP");
   zcmsnap->zcm = NULL;
+  zcmsnap->last_debounce = INT16_MAX;
+  zcmsnap->sub = NULL;
+
   pthread_mutex_init(&zcmsnap->mutex, NULL);
 
-  int16_t last_debounce;
-  zcm_gstreamer_plugins_snap_t_subscription_t* sub;
-  pthread_mutex_t mutex;
-  bool take_picture;
+  pthread_mutex_lock(&zcmsnap->mutex);
+  zcmsnap->take_picture = 0;
+  pthread_mutex_unlock(&zcmsnap->mutex);
+
+  zcmsnap->url = g_string_new("");
+  zcmsnap->channel = g_string_new("GSTREAMER_SNAP");
+
+  init_zcm(zcmsnap);
 }
 
 void
@@ -213,12 +231,11 @@ gst_zcm_snap_set_property (GObject * object, guint property_id,
   switch (property_id) {
     case PROP_ZCM_URL:
       g_string_assign (zcmsnap->url, g_value_get_string (value));
-      reinit_zcm(zcmsnap);
-      reinit_subscription(zcmsnap);
+      init_zcm(zcmsnap);
       break;
     case PROP_CHANNEL:
       g_string_assign (zcmsnap->channel, g_value_get_string (value));
-      reinit_subscription(zcmsnap);
+      subscribe(zcmsnap);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -268,9 +285,7 @@ gst_zcm_snap_finalize (GObject * object)
 
   /* clean up object here */
 
-  zcm_stop(zcmsnap->zcm);
-  zcm_destroy(zcmsnap->zcm);
-  zcmsnap->zcm = NULL;
+  destroy_zcm(zcmsnap);
 
   G_OBJECT_CLASS (gst_zcm_snap_parent_class)->finalize (object);
 }
