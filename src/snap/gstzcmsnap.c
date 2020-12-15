@@ -330,6 +330,17 @@ gst_zcm_snap_transform_frame (GstVideoFilter * filter, GstVideoFrame * inframe,
 
   GST_DEBUG_OBJECT (zcmsnap, "transform_frame");
 
+  int take_picture;
+  pthread_mutex_lock(&zcmsnap->mutex);
+  take_picture = zcmsnap->take_picture;
+  pthread_mutex_unlock(&zcmsnap->mutex);
+
+  if (take_picture) {
+      gst_video_frame_copy(outframe, inframe);
+  } else {
+      // RRR: clear outframe
+  }
+
   return GST_FLOW_OK;
 }
 
@@ -339,6 +350,15 @@ gst_zcm_snap_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * frame)
   GstZcmSnap *zcmsnap = GST_ZCM_SNAP (filter);
 
   GST_DEBUG_OBJECT (zcmsnap, "transform_frame_ip");
+
+  int take_picture;
+  pthread_mutex_lock(&zcmsnap->mutex);
+  take_picture = zcmsnap->take_picture;
+  pthread_mutex_unlock(&zcmsnap->mutex);
+
+  if (!take_picture) {
+      // RRR: clear outframe
+  }
 
   return GST_FLOW_OK;
 }
