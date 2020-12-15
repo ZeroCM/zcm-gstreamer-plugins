@@ -1,0 +1,21 @@
+#! /usr/bin/env python
+
+def build(ctx):
+
+    DEPS = ['default', 'zcm', 'gstreamer', 'gstreamer_video',
+            'zcm_gstreamer_plugins_zcmtypes_c_shlib']
+
+    ctx.shlib(target   = 'gstzcmsnap',
+              use      = DEPS,
+              source   = ['gstzcmsnap.c'],
+              includes = [ ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT ])
+
+    ctx(rule = 'cp ${SRC} ${TGT}',
+        source = 'libgstzcmsnap.so',
+        target = 'plugin/gstzcmsnap.so',
+        color = 'PINK')
+
+    ctx.program(target = 'example-pub',
+                use    = DEPS,
+                source = ['example_pub.c'],
+                includes = [ ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT ])

@@ -9,7 +9,9 @@ test: all
 	@gst-inspect-1.0 ./build/imagesink/gstzcmimagesink.so
 	@gst-inspect-1.0 ./build/snap/gstzcmsnap.so
 
-all: build zcmtypes
+all: examples zcmtypes core build
+
+core: zcmtypes build
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/imagesink/gstzcmimagesink.o src/imagesink/gstzcmimagesink.c
 	@gcc -shared -o build/imagesink/gstzcmimagesink.so build/imagesink/gstzcmimagesink.o build/zcmtypes/libzcmtypes.so $(LIBS)
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/snap/gstzcmsnap.o src/snap/gstzcmsnap.c
@@ -31,9 +33,11 @@ zcmtypes: build
 	@gcc -shared -o build/zcmtypes/libzcmtypes.so build/zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.o \
 												  build/zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_snap_t.o \
 												  build/zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_photo_t.o $(LIBS)
+examples: zcmtypes build
+	@gcc -o build/snap/example-pub $(CFLAGS) src/snap/example_pub.c $(LIBS) -L build/zcmtypes -l zcmtypes
 
 build:
-	mkdir -p build
+	@mkdir -p build
 
 clean:
-	rm -rf ./build/*
+	@rm -rf ./build/*

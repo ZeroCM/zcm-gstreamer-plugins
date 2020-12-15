@@ -58,8 +58,6 @@ static gboolean gst_zcm_snap_stop (GstBaseTransform * trans);
 static gboolean gst_zcm_snap_set_info (GstVideoFilter * filter,
     GstCaps * incaps, GstVideoInfo * in_info, GstCaps * outcaps,
     GstVideoInfo * out_info);
-static GstFlowReturn gst_zcm_snap_transform_frame (GstVideoFilter * filter,
-    GstVideoFrame * inframe, GstVideoFrame * outframe);
 static GstFlowReturn gst_zcm_snap_transform_frame_ip (GstVideoFilter * filter,
     GstVideoFrame * frame);
 
@@ -181,14 +179,13 @@ gst_zcm_snap_class_init (GstZcmSnapClass * klass)
   gobject_class->get_property = gst_zcm_snap_get_property;
   gobject_class->dispose = gst_zcm_snap_dispose;
   gobject_class->finalize = gst_zcm_snap_finalize;
+
   base_transform_class->start = GST_DEBUG_FUNCPTR (gst_zcm_snap_start);
   base_transform_class->stop = GST_DEBUG_FUNCPTR (gst_zcm_snap_stop);
+
   video_filter_class->set_info = GST_DEBUG_FUNCPTR (gst_zcm_snap_set_info);
-  video_filter_class->transform_frame =
-      GST_DEBUG_FUNCPTR (gst_zcm_snap_transform_frame);
   video_filter_class->transform_frame_ip =
       GST_DEBUG_FUNCPTR (gst_zcm_snap_transform_frame_ip);
-
 
   g_object_class_install_property (gobject_class, PROP_ZCM_URL,
           g_param_spec_string ("url", "Zcm transport url",
@@ -204,6 +201,9 @@ gst_zcm_snap_class_init (GstZcmSnapClass * klass)
 static void
 gst_zcm_snap_init (GstZcmSnap* zcmsnap)
 {
+  gst_base_transform_set_passthrough(GST_BASE_TRANSFORM (zcmsnap), TRUE);
+  gst_base_transform_set_in_place(GST_BASE_TRANSFORM (zcmsnap), TRUE);
+
   zcmsnap->zcm = NULL;
   zcmsnap->last_debounce = INT16_MAX;
   zcmsnap->sub = NULL;
@@ -211,7 +211,7 @@ gst_zcm_snap_init (GstZcmSnap* zcmsnap)
   pthread_mutex_init(&zcmsnap->mutex, NULL);
 
   pthread_mutex_lock(&zcmsnap->mutex);
-  zcmsnap->take_picture = 0;
+  zcmsnap->take_picture = false;
   pthread_mutex_unlock(&zcmsnap->mutex);
 
   zcmsnap->url = g_string_new("");
@@ -318,30 +318,11 @@ gst_zcm_snap_set_info (GstVideoFilter * filter, GstCaps * incaps,
 
   GST_DEBUG_OBJECT (zcmsnap, "set_info");
 
-  return TRUE;
-}
-
-/* transform */
-static GstFlowReturn
-gst_zcm_snap_transform_frame (GstVideoFilter * filter, GstVideoFrame * inframe,
-    GstVideoFrame * outframe)
-{
-  GstZcmSnap *zcmsnap = GST_ZCM_SNAP (filter);
-
-  GST_DEBUG_OBJECT (zcmsnap, "transform_frame");
-
-  int take_picture;
-  pthread_mutex_lock(&zcmsnap->mutex);
-  take_picture = zcmsnap->take_picture;
-  pthread_mutex_unlock(&zcmsnap->mutex);
-
-  if (take_picture) {
-      gst_video_frame_copy(outframe, inframe);
-  } else {
-      // RRR: clear outframe
+  if (GST_VIDEO_INFO_FORMAT (in_info) != GST_VIDEO_INFO_FORMAT (out_info)) {
+    return FALSE;
   }
 
-  return GST_FLOW_OK;
+  return TRUE;
 }
 
 static GstFlowReturn
@@ -351,13 +332,14 @@ gst_zcm_snap_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * frame)
 
   GST_DEBUG_OBJECT (zcmsnap, "transform_frame_ip");
 
-  int take_picture;
+  bool take_picture;
   pthread_mutex_lock(&zcmsnap->mutex);
   take_picture = zcmsnap->take_picture;
+  zcmsnap->take_picture = false;
   pthread_mutex_unlock(&zcmsnap->mutex);
 
-  if (!take_picture) {
-      // RRR: clear outframe
+  if (G_LIKELY(!take_picture)) {
+    return GST_BASE_TRANSFORM_FLOW_DROPPED;
   }
 
   return GST_FLOW_OK;
