@@ -3,4 +3,5 @@
 
 def build(ctx):
     ctx.recurse('imagesink')
+    ctx.recurse('snap')
     ctx.recurse('zcmtypes')

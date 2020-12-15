@@ -80,7 +80,6 @@ enum
     GRAY16_LE (zcm: LE_GRAY16)
     RGB16 (zcm: LE_RGB16)
 */
-/* FIXME: add/remove formats you can handle */
 #define VIDEO_SINK_CAPS \
     GST_VIDEO_CAPS_MAKE("{ UYVY, YUY2, IYU1, IYU2, I420, NV12, GRAY8," \
                         "  RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \

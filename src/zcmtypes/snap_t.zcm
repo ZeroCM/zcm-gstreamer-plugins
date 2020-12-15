@@ -1,0 +1,7 @@
+package zcm_gstreamer_plugins;
+
+struct snap_t
+{
+    int64_t utime;
+    int16_t debounce; // change this number when you want a new picture to be taken
+}
