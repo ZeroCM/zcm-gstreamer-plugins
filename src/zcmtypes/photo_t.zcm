@@ -3,6 +3,17 @@ package zcm_gstreamer_plugins;
 struct photo_t
 {
     int64_t utime;
-    int64_t pic_utime;
+
     string filepath;
+
+    // Image metadata - see image_t.zcm
+    int32_t  width;
+    int32_t  height;
+
+    int8_t   num_strides;
+    int32_t  stride[num_strides];
+
+    int32_t  pixelformat;
+
+    int32_t  data_size;
 }

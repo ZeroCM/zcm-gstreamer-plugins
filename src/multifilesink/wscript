@@ -1,0 +1,16 @@
+#! /usr/bin/env python
+
+def build(ctx):
+
+    DEPS = ['default', 'zcm', 'gstreamer', 'gstreamer_video',
+            'zcm_gstreamer_plugins_zcmtypes_c_shlib']
+
+    ctx.shlib(target   = 'gstzcmmultifilesink',
+              use      = DEPS,
+              source   = ['gstzcmmultifilesink.c'],
+              includes = [ ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT ])
+
+    ctx(rule = 'cp ${SRC} ${TGT}',
+        source = 'libgstzcmmultifilesink.so',
+        target = 'plugin/gstzcmmultifilesink.so',
+        color = 'PINK')
