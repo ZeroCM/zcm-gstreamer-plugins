@@ -55,11 +55,11 @@ struct _GstZcmMultiFileSink
   pthread_mutex_t mutex;
   bool exit;
 
-
   // Properties
   GString* url;
   GString* channel;
   GString* location;
+  gulong   period_us;
 };
 
 struct _GstZcmMultiFileSinkClass

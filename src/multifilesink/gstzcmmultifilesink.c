@@ -66,6 +66,7 @@ enum
   PROP_ZCM_URL,
   PROP_CHANNEL,
   PROP_LOCATION,
+  PROP_PERIOD_US,
 };
 
 /* Private members */
@@ -97,6 +98,7 @@ static void* pub_thread(void* usr)
 
   bool exit;
   GString* channel = g_string_new("");
+  gulong period_us;
   zcm_gstreamer_plugins_photo_t* photo = NULL;
 
   while (true) {
@@ -104,6 +106,7 @@ static void* pub_thread(void* usr)
 
         exit = zcmmultifilesink->exit;
         g_string_assign(channel, zcmmultifilesink->channel->str);
+        period_us = zcmmultifilesink->period_us;
 
         if (zcmmultifilesink->photo) {
             if (photo) zcm_gstreamer_plugins_photo_t_destroy(photo);
@@ -120,7 +123,7 @@ static void* pub_thread(void* usr)
       zcm_gstreamer_plugins_photo_t_publish(zcmmultifilesink->zcm, channel->str, photo);
     }
 
-    usleep(100 * 1000);
+    usleep(period_us);
   }
 
   if (photo) zcm_gstreamer_plugins_photo_t_destroy(photo);
@@ -241,7 +244,12 @@ gst_zcm_multifilesink_class_init (GstZcmMultiFileSinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_LOCATION,
           g_param_spec_string ("location", "File save location",
               "Disk location to save files to",
-              "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+              "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_PERIOD_US,
+          g_param_spec_string ("period-us", "Publish period us",
+              "Publish period of the zcm publish thread in microseconds",
+              "100000", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -254,6 +262,7 @@ gst_zcm_multifilesink_init (GstZcmMultiFileSink * zcmmultifilesink)
   memset(&zcmmultifilesink->photo, 0, sizeof(zcmmultifilesink->photo));
   zcmmultifilesink->nwrites = 0;
   zcmmultifilesink->location = g_string_new("");
+  zcmmultifilesink->period_us = 100 * 1000;
 }
 
 void
@@ -276,6 +285,13 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
       break;
     case PROP_LOCATION:
       g_string_assign (zcmmultifilesink->location, g_value_get_string (value));
+      break;
+    case PROP_PERIOD_US:
+      pthread_mutex_lock(&zcmmultifilesink->mutex);
+      gulong tmp = atol(g_value_get_string(value));
+      if (tmp) zcmmultifilesink->period_us = tmp;
+      else GST_ERROR_OBJECT (zcmmultifilesink, "Input period-us is invalid");
+      pthread_mutex_unlock(&zcmmultifilesink->mutex);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -302,6 +318,11 @@ gst_zcm_multifilesink_get_property (GObject * object, guint property_id,
       break;
     case PROP_LOCATION:
       g_value_set_string (value, zcmmultifilesink->location->str);
+      break;
+    case PROP_PERIOD_US:
+      pthread_mutex_lock(&zcmmultifilesink->mutex);
+      g_value_set_ulong (value, zcmmultifilesink->period_us);
+      pthread_mutex_unlock(&zcmmultifilesink->mutex);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
