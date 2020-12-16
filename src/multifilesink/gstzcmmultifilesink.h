@@ -23,6 +23,9 @@
 #include <gst/video/video.h>
 #include <gst/video/gstvideosink.h>
 
+#include <stdbool.h>
+#include <pthread.h>
+
 #include <zcm/zcm.h>
 #include "zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_photo_t.h"
 
@@ -44,8 +47,14 @@ struct _GstZcmMultiFileSink
   // Privates
   zcm_t* zcm;
   GstVideoInfo info;
-  zcm_gstreamer_plugins_photo_t photo;
+  zcm_gstreamer_plugins_photo_t* photo;
   int64_t nwrites;
+  int32_t pixelformat;
+
+  pthread_t pub_thr;
+  pthread_mutex_t mutex;
+  bool exit;
+
 
   // Properties
   GString* url;

@@ -4,6 +4,8 @@ struct photo_t
 {
     int64_t utime;
 
+    int64_t pic_utime;
+
     string filepath;
 
     // Image metadata - see image_t.zcm

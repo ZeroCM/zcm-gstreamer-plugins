@@ -40,6 +40,8 @@
 #include <gst/video/gstvideosink.h>
 #include "gstzcmmultifilesink.h"
 
+#include <sys/time.h>
+
 #include "zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_zcm_multifilesink_debug_category);
@@ -73,11 +75,72 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS_ANY);
 
+static inline uint64_t utime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    // XXX Not sure if this will work across hour boundaries
+    return (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+static inline void usleep(uint64_t us)
+{
+    struct timespec req = { 0 };
+    req.tv_sec          = us / 1000000L;
+    req.tv_nsec         = (us - req.tv_sec * 1000000L) * 1000L;
+    nanosleep(&req, NULL);
+}
+
+static void* pub_thread(void* usr)
+{
+  GstZcmMultiFileSink* zcmmultifilesink = (GstZcmMultiFileSink*) usr;
+
+  bool exit;
+  GString* channel = g_string_new("");
+  zcm_gstreamer_plugins_photo_t* photo = NULL;
+
+  while (true) {
+    pthread_mutex_lock(&zcmmultifilesink->mutex);
+
+        exit = zcmmultifilesink->exit;
+        g_string_assign(channel, zcmmultifilesink->channel->str);
+
+        if (zcmmultifilesink->photo) {
+            if (photo) zcm_gstreamer_plugins_photo_t_destroy(photo);
+            photo = zcmmultifilesink->photo;
+            zcmmultifilesink->photo = NULL;
+        }
+
+    pthread_mutex_unlock(&zcmmultifilesink->mutex);
+
+    if (exit) break;
+
+    if (photo) {
+      photo->utime = utime();
+      zcm_gstreamer_plugins_photo_t_publish(zcmmultifilesink->zcm, channel->str, photo);
+    }
+
+    usleep(100 * 1000);
+  }
+
+  if (photo) zcm_gstreamer_plugins_photo_t_destroy(photo);
+  g_string_free(channel, false);
+
+  return NULL;
+}
+
 static void
 destroy_zcm (GstZcmMultiFileSink* zcmmultifilesink)
 {
   if (!zcmmultifilesink->zcm) return;
+
   zcm_stop(zcmmultifilesink->zcm);
+
+  pthread_mutex_lock(&zcmmultifilesink->mutex);
+  zcmmultifilesink->exit = true;
+  pthread_mutex_unlock(&zcmmultifilesink->mutex);
+  pthread_join(zcmmultifilesink->pub_thr, NULL);
+
   zcm_destroy(zcmmultifilesink->zcm);
   zcmmultifilesink->zcm = NULL;
 }
@@ -86,8 +149,13 @@ static void
 init_zcm (GstZcmMultiFileSink* zcmmultifilesink)
 {
   destroy_zcm(zcmmultifilesink);
+
   zcmmultifilesink->zcm = zcm_create(zcmmultifilesink->url->str);
+
   zcm_start(zcmmultifilesink->zcm);
+
+  zcmmultifilesink->exit = false;
+  pthread_create(&zcmmultifilesink->pub_thr, NULL, pub_thread, zcmmultifilesink);
 }
 
 
@@ -116,22 +184,19 @@ gst_zcmmultifilesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
     return FALSE;
   }
 
-  zcmmultifilesink->photo.width = info.width;
-  zcmmultifilesink->photo.height = info.height;
-
   GstVideoFormat pixelformat = GST_VIDEO_INFO_FORMAT(&info);
-  zcmmultifilesink->photo.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
-  if (zcmmultifilesink->photo.pixelformat == 0) {
+  zcmmultifilesink->pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
+  if (zcmmultifilesink->pixelformat == 0) {
     switch (pixelformat) {
       case GST_VIDEO_FORMAT_RGBA:
-        zcmmultifilesink->photo.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA;
+        zcmmultifilesink->pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA;
         break;
       default:
         break;
     }
     GstStructure *s = gst_caps_get_structure(caps, 0);
     if (!strcmp("image/jpeg", gst_structure_get_name(s))) {
-        zcmmultifilesink->photo.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG;
+        zcmmultifilesink->pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG;
     }
   }
 
@@ -183,6 +248,7 @@ static void
 gst_zcm_multifilesink_init (GstZcmMultiFileSink * zcmmultifilesink)
 {
   zcmmultifilesink->url = g_string_new("");
+  zcmmultifilesink->photo = NULL;
   zcmmultifilesink->channel = g_string_new("GSTREAMER_DATA");
   zcmmultifilesink->zcm = NULL;
   memset(&zcmmultifilesink->photo, 0, sizeof(zcmmultifilesink->photo));
@@ -204,7 +270,9 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
       init_zcm(zcmmultifilesink);
       break;
     case PROP_CHANNEL:
+      pthread_mutex_lock(&zcmmultifilesink->mutex);
       g_string_assign (zcmmultifilesink->channel, g_value_get_string (value));
+      pthread_mutex_unlock(&zcmmultifilesink->mutex);
       break;
     case PROP_LOCATION:
       g_string_assign (zcmmultifilesink->location, g_value_get_string (value));
@@ -228,7 +296,9 @@ gst_zcm_multifilesink_get_property (GObject * object, guint property_id,
       g_value_set_string (value, zcmmultifilesink->url->str);
       break;
     case PROP_CHANNEL:
+      pthread_mutex_lock(&zcmmultifilesink->mutex);
       g_value_set_string (value, zcmmultifilesink->channel->str);
+      pthread_mutex_unlock(&zcmmultifilesink->mutex);
       break;
     case PROP_LOCATION:
       g_value_set_string (value, zcmmultifilesink->location->str);
@@ -262,11 +332,6 @@ gst_zcm_multifilesink_finalize (GObject * object)
 
   destroy_zcm(zcmmultifilesink);
 
-  if (zcmmultifilesink->photo.stride) {
-    free (zcmmultifilesink->photo.stride);
-    zcmmultifilesink->photo.num_strides = 0;
-  }
-
   G_OBJECT_CLASS (gst_zcm_multifilesink_parent_class)->finalize (object);
 }
 
@@ -274,6 +339,8 @@ static GstFlowReturn
 gst_zcm_multifilesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
 {
   GstZcmMultiFileSink *zcmmultifilesink = GST_ZCM_MULTIFILESINK (sink);
+
+  zcm_gstreamer_plugins_photo_t photo;
 
   GST_DEBUG_OBJECT (zcmmultifilesink, "show_frame");
 
@@ -294,19 +361,6 @@ gst_zcm_multifilesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
     return GST_FLOW_OK;
   }
 
-  gint num_strides = GST_VIDEO_FRAME_N_PLANES (&src);
-  if (num_strides != zcmmultifilesink->photo.num_strides) {
-    if (zcmmultifilesink->photo.num_strides != 0) {
-      free (zcmmultifilesink->photo.stride);
-    }
-    zcmmultifilesink->photo.stride = malloc (sizeof(int32_t) * num_strides);
-    zcmmultifilesink->photo.num_strides = num_strides;
-  }
-
-  for (size_t i = 0; i < num_strides; ++i) {
-    zcmmultifilesink->photo.stride[i] = GST_VIDEO_FRAME_PLANE_STRIDE (&src, i);
-  }
-
   GstMapInfo info;
   if (!gst_buffer_map (buf, &info, GST_MAP_READ)) {
     GST_WARNING_OBJECT (zcmmultifilesink, "could not map buffer info");
@@ -314,18 +368,10 @@ gst_zcm_multifilesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
     return GST_FLOW_OK;
   }
 
-  zcmmultifilesink->photo.data_size = info.size;
 
   // write file
   char file_location_buf[256];
-  snprintf(file_location_buf, 256, zcmmultifilesink->location->str, zcmmultifilesink->nwrites++);
-
-  zcmmultifilesink->photo.filepath = file_location_buf;
-  if (GST_BUFFER_DTS_IS_VALID(buf)) {
-    zcmmultifilesink->photo.utime = GST_BUFFER_DTS(buf) / 1e3;
-  } else {
-    zcmmultifilesink->photo.utime = 0;
-  }
+  snprintf(file_location_buf, 256, zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
 
   FILE *fp;
   fp = fopen(file_location_buf, "w");
@@ -336,8 +382,47 @@ gst_zcm_multifilesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
       if (ret < 0) {
         fprintf(stderr, "Failed to write file: %s\n", file_location_buf);
       } else {
-        zcm_gstreamer_plugins_photo_t_publish (zcmmultifilesink->zcm,
-                zcmmultifilesink->channel->str, &zcmmultifilesink->photo);
+        zcmmultifilesink->nwrites++;
+
+        photo.width = zcmmultifilesink->info.width;
+        photo.height = zcmmultifilesink->info.height;
+
+        photo.pixelformat = zcmmultifilesink->pixelformat;
+
+        gint num_strides = GST_VIDEO_FRAME_N_PLANES (&src);
+        photo.stride = malloc (sizeof(int32_t) * num_strides);
+        photo.num_strides = num_strides;
+
+        for (size_t i = 0; i < num_strides; ++i) {
+          photo.stride[i] = GST_VIDEO_FRAME_PLANE_STRIDE (&src, i);
+        }
+
+        photo.data_size = info.size;
+
+        photo.filepath = file_location_buf;
+
+        GstElement *gstElement = GST_ELEMENT (sink);
+        GstClockTime baseTime = gst_element_get_base_time (gstElement);
+        if (GST_BUFFER_DTS_IS_VALID(buf)) {
+          photo.pic_utime = (baseTime + GST_BUFFER_DTS(buf)) / 1e3;
+        } else {
+          photo.pic_utime = 0;
+        }
+
+        photo.utime = utime();
+
+        pthread_mutex_lock(&zcmmultifilesink->mutex);
+
+            zcm_gstreamer_plugins_photo_t_publish(zcmmultifilesink->zcm, zcmmultifilesink->channel->str, &photo);
+
+            if (zcmmultifilesink->photo) {
+                zcm_gstreamer_plugins_photo_t_destroy(zcmmultifilesink->photo);
+            }
+            zcmmultifilesink->photo = zcm_gstreamer_plugins_photo_t_copy(&photo);
+
+        pthread_mutex_unlock(&zcmmultifilesink->mutex);
+
+        free(photo.stride);
       }
   }
 
