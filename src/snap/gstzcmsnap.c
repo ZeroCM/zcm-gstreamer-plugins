@@ -69,30 +69,16 @@ enum
 };
 
 /* pad templates */
-/*
-    UYVY
-    YUY2 (zcm: YUYV)
-    IYU1
-    IYU2
-    I420
-    NV12
-    GRAY8 (zcm: GRAY)
-    RGB
-    BGR
-    RGBA
-    BGRA
-    GRAY16_BE (zcm: BE_GRAY16)
-    GRAY16_LE (zcm: LE_GRAY16)
-    RGB16 (zcm: LE_RGB16)
-*/
-#define VIDEO_SRC_CAPS \
-    GST_VIDEO_CAPS_MAKE("{ UYVY, YUY2, IYU1, IYU2, I420, NV12, GRAY8," \
-                        "  RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \
-                        "  RGB16 }")
-#define VIDEO_SINK_CAPS \
-    GST_VIDEO_CAPS_MAKE("{ UYVY, YUY2, IYU1, IYU2, I420, NV12, GRAY8," \
-                        "  RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \
-                        "  RGB16 }")
+
+static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS_ANY);
+
+static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS_ANY);
 
 
 /* Private members */
@@ -161,14 +147,8 @@ gst_zcm_snap_class_init (GstZcmSnapClass * klass)
   GstBaseTransformClass *base_transform_class = GST_BASE_TRANSFORM_CLASS (klass);
   GstVideoFilterClass *video_filter_class = GST_VIDEO_FILTER_CLASS (klass);
 
-  /* Setting up pads and setting metadata should be moved to
-     base_class_init if you intend to subclass this class. */
-  gst_element_class_add_pad_template (GST_ELEMENT_CLASS (klass),
-      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-          gst_caps_from_string (VIDEO_SRC_CAPS)));
-  gst_element_class_add_pad_template (GST_ELEMENT_CLASS (klass),
-      gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-          gst_caps_from_string (VIDEO_SINK_CAPS)));
+  gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS (klass), &srctemplate);
+  gst_element_class_add_static_pad_template (GST_ELEMENT_CLASS (klass), &sinktemplate);
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "ZcmSnap", "Generic",
