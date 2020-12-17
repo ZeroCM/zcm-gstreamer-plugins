@@ -321,7 +321,9 @@ gst_zcm_multifilesink_get_property (GObject * object, guint property_id,
       break;
     case PROP_PERIOD_US:
       pthread_mutex_lock(&zcmmultifilesink->mutex);
-      g_value_set_ulong (value, zcmmultifilesink->period_us);
+      char str[128];
+      snprintf(str, 128, "%lu", zcmmultifilesink->period_us);
+      g_value_set_string (value, str);
       pthread_mutex_unlock(&zcmmultifilesink->mutex);
       break;
     default:

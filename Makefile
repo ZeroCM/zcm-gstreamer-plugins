@@ -8,7 +8,7 @@ $(shell mkdir -p build/imagesink build/snap build/multifilesink build/zcmtypes)
 test: all
 	@gst-inspect-1.0 ./build/imagesink/gstzcmimagesink.so
 	@gst-inspect-1.0 ./build/snap/gstzcmsnap.so
-	@gst-inspect-1.0 ./build/snap/gstzcmmultifilesink.so
+	@gst-inspect-1.0 ./build/multifilesink/gstzcmmultifilesink.so
 
 all: examples zcmtypes core
 
@@ -17,7 +17,7 @@ core: zcmtypes
 	@gcc -shared -o build/imagesink/gstzcmimagesink.so build/imagesink/gstzcmimagesink.o build/zcmtypes/libzcmtypes.so $(LIBS)
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/snap/gstzcmsnap.o src/snap/gstzcmsnap.c
 	@gcc -shared -o build/snap/gstzcmsnap.so build/snap/gstzcmsnap.o build/zcmtypes/libzcmtypes.so $(LIBS)
-	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/snap/gstzcmmultifilesink.o src/multifilesink/gstzcmmultifilesink.c
+	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/multifilesink/gstzcmmultifilesink.o src/multifilesink/gstzcmmultifilesink.c
 	@gcc -shared -o build/multifilesink/gstzcmmultifilesink.so build/multifilesink/gstzcmmultifilesink.o build/zcmtypes/libzcmtypes.so $(LIBS)
 
 debug: zcmtypes
