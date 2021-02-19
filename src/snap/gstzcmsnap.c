@@ -173,7 +173,7 @@ gst_zcm_snap_class_init (GstZcmSnapClass * klass)
               "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CHANNEL,
-          g_param_spec_string ("channel", "Zcm publish channel",
+          g_param_spec_string ("channel", "Zcm subscribe channel",
               "Channel name for snap_t subscription",
               "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
