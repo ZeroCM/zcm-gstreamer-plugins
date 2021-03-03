@@ -2,6 +2,6 @@
 
 def build(ctx):
     ctx.zcmgen(name = 'zcm_gstreamer_plugins_zcmtypes',
-               lang = ['c_shlib', 'cpp'],
+               lang = ['c_shlib', 'cpp', 'python'],
                build = True,
                source = ctx.path.ant_glob('**/*.zcm'))
