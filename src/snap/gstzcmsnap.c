@@ -91,7 +91,7 @@ handler (const zcm_recv_buf_t* rbuf, const char* channel,
   if (zcmsnap->last_debounce != msg->debounce) {
     zcmsnap->last_debounce = msg->debounce;
     pthread_mutex_lock(&zcmsnap->mutex);
-    zcmsnap->take_picture = true;
+      zcmsnap->take_picture = true;
     pthread_mutex_unlock(&zcmsnap->mutex);
   }
 }
@@ -191,7 +191,7 @@ gst_zcm_snap_init (GstZcmSnap* zcmsnap)
   pthread_mutex_init(&zcmsnap->mutex, NULL);
 
   pthread_mutex_lock(&zcmsnap->mutex);
-  zcmsnap->take_picture = false;
+    zcmsnap->take_picture = false;
   pthread_mutex_unlock(&zcmsnap->mutex);
 
   zcmsnap->url = g_string_new("");
@@ -314,8 +314,8 @@ gst_zcm_snap_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * frame)
 
   bool take_picture;
   pthread_mutex_lock(&zcmsnap->mutex);
-  take_picture = zcmsnap->take_picture;
-  zcmsnap->take_picture = false;
+    take_picture = zcmsnap->take_picture;
+    zcmsnap->take_picture = false;
   pthread_mutex_unlock(&zcmsnap->mutex);
 
   if (G_LIKELY(!take_picture)) {

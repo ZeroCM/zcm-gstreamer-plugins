@@ -12,11 +12,15 @@ int main(int argc, char *argv[])
     zcm_gstreamer_plugins_snap_t snap = {};
     if (argc > 1) snap.debounce = atoi(argv[1]);
 
-    int i;
-    for (i = 0; i < 5; ++i) {
-        snap.utime++;
-        zcm_gstreamer_plugins_snap_t_publish(zcm, "GSTREAMER_SNAP", &snap);
-        usleep(100 * 1000);
+    int j;
+    for (j = 0; j < 10; ++j) {
+        int i;
+        for (i = 0; i < 10; ++i) {
+            snap.utime++;
+            zcm_gstreamer_plugins_snap_t_publish(zcm, "GSTREAMER_SNAP", &snap);
+            usleep(100 * 1000);
+        }
+        snap.debounce++;
     }
 
     zcm_destroy(zcm);
