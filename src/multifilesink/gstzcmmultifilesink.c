@@ -40,6 +40,11 @@
 #include <gst/video/gstvideosink.h>
 #include "gstzcmmultifilesink.h"
 
+#include "assert.h"
+#include "dirent.h"
+#include "libgen.h"
+#include "stdio.h"
+
 #include <sys/time.h>
 
 #include "zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
@@ -90,6 +95,62 @@ static inline void usleep(uint64_t us)
     req.tv_sec          = us / 1000000L;
     req.tv_nsec         = (us - req.tv_sec * 1000000L) * 1000L;
     nanosleep(&req, NULL);
+}
+
+static inline void printf_int_to_scanf(char* dst, const char* src)
+{
+    int inIntFmtStr = 0;
+    while (*src != '\0') {
+      if (inIntFmtStr) {
+        if (*src == 'd' || *src == 'i' || *src == 'u' ||
+            *src == 'x' || *src == 'X' || *src == 'o') {
+          inIntFmtStr = 0;
+        } else {
+          ++src;
+          continue;
+        }
+      } else if (*src == '%') {
+        inIntFmtStr = 1;
+      }
+      *dst++ = *src++;
+    }
+    *dst = '\0';
+}
+
+static inline void updateStartFilepath(GstZcmMultiFileSink* zcmmultifilesink)
+{
+  char* loc1 = strdup(zcmmultifilesink->location->str);
+  char* loc2 = strdup(zcmmultifilesink->location->str);
+  // apparently these calls can modify the input,
+  // but you actually want the output, so it's ugly
+  char* bName = basename(loc1);
+  char* dName = dirname(loc2);
+
+  char* sFmt = strdup(bName);
+  printf_int_to_scanf(sFmt, bName);
+
+  int found = 0;
+  DIR* dir;
+  struct dirent *ent;
+  dir = opendir(dName);
+  if (dir) {
+    while ((ent = readdir(dir)) != NULL) {
+      int ret = sscanf(ent->d_name, sFmt, &found);
+      if (ret == 1 && found >= zcmmultifilesink->nwrites) {
+        zcmmultifilesink->nwrites = found + 1;
+      }
+    }
+    closedir(dir);
+    printf("Found existing files matching output pattern, starting from ");
+  } else {
+    printf("Output directory not found, starting from ");
+  }
+  printf(zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
+  printf("\n");
+
+  free(loc1);
+  free(loc2);
+  free(sFmt);
 }
 
 static void* pub_thread(void* usr)
@@ -285,6 +346,8 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
       break;
     case PROP_LOCATION:
       g_string_assign (zcmmultifilesink->location, g_value_get_string (value));
+      assert(strlen(zcmmultifilesink->location->str) < 1024 && "location length exceeded");
+      updateStartFilepath(zcmmultifilesink);
       break;
     case PROP_PERIOD_US:
       pthread_mutex_lock(&zcmmultifilesink->mutex);
@@ -393,8 +456,8 @@ gst_zcm_multifilesink_show_frame (GstVideoSink * sink, GstBuffer * buf)
 
 
   // write file
-  char file_location_buf[256];
-  snprintf(file_location_buf, 256, zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
+  char file_location_buf[1024];
+  snprintf(file_location_buf, 1024, zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
 
   FILE *fp;
   fp = fopen(file_location_buf, "w");
