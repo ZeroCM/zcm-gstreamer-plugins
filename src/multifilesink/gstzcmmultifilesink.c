@@ -101,18 +101,18 @@ static inline void printf_int_to_scanf(char* dst, const char* src)
 {
     int inIntFmtStr = 0;
     while (*src != '\0') {
-        if (inIntFmtStr) {
-            if (*src == 'd' || *src == 'i' || *src == 'u' ||
-                *src == 'x' || *src == 'X' || *src == 'o') {
-                inIntFmtStr = 0;
-            } else {
-                ++src;
-                continue;
-            }
-        } else if (*src == '%') {
-            inIntFmtStr = 1;
+      if (inIntFmtStr) {
+        if (*src == 'd' || *src == 'i' || *src == 'u' ||
+            *src == 'x' || *src == 'X' || *src == 'o') {
+          inIntFmtStr = 0;
+        } else {
+          ++src;
+          continue;
         }
-        *dst++ = *src++;
+      } else if (*src == '%') {
+        inIntFmtStr = 1;
+      }
+      *dst++ = *src++;
     }
     *dst = '\0';
 }
@@ -312,41 +312,41 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
       g_string_assign (zcmmultifilesink->location, g_value_get_string (value));
       assert(strlen(zcmmultifilesink->location->str) < 256 && "location length exceeded");
       {
-          char* loc1 = strdup(zcmmultifilesink->location->str);
-          char* loc2 = strdup(zcmmultifilesink->location->str);
-          // apparently these calls can modify the input,
-          // but you actually want the output, so it's ugly
-          char* bName = basename(loc1);
-          char* dName = dirname(loc2);
+        char* loc1 = strdup(zcmmultifilesink->location->str);
+        char* loc2 = strdup(zcmmultifilesink->location->str);
+        // apparently these calls can modify the input,
+        // but you actually want the output, so it's ugly
+        char* bName = basename(loc1);
+        char* dName = dirname(loc2);
 
-          char* sFmt = strdup(bName);
-          printf_int_to_scanf(sFmt, bName);
+        char* sFmt = strdup(bName);
+        printf_int_to_scanf(sFmt, bName);
 
-          int found = 0;
-          DIR* dir;
-          struct dirent *ent;
-          dir = opendir(dName);
-          if (dir) {
-              while ((ent = readdir(dir)) != NULL) {
-                  if (strcmp(ent->d_name, ".") == 0 ||
-                      strcmp(ent->d_name, "..") == 0) continue;
+        int found = 0;
+        DIR* dir;
+        struct dirent *ent;
+        dir = opendir(dName);
+        if (dir) {
+          while ((ent = readdir(dir)) != NULL) {
+            if (strcmp(ent->d_name, ".") == 0 ||
+                strcmp(ent->d_name, "..") == 0) continue;
 
-                  sscanf(ent->d_name, sFmt, &found);
-                  if (found >= zcmmultifilesink->nwrites) {
-                      zcmmultifilesink->nwrites = found + 1;
-                  }
-              }
-              closedir(dir);
-              printf("Found existing files matching output pattern, starting from ");
-          } else {
-              printf("Output directory not found, starting from ");
+            sscanf(ent->d_name, sFmt, &found);
+            if (found >= zcmmultifilesink->nwrites) {
+              zcmmultifilesink->nwrites = found + 1;
+            }
           }
-          printf(zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
-          printf("\n");
+          closedir(dir);
+          printf("Found existing files matching output pattern, starting from ");
+        } else {
+          printf("Output directory not found, starting from ");
+        }
+        printf(zcmmultifilesink->location->str, zcmmultifilesink->nwrites);
+        printf("\n");
 
-          free(loc1);
-          free(loc2);
-          free(sFmt);
+        free(loc1);
+        free(loc2);
+        free(sFmt);
       }
       break;
     case PROP_PERIOD_US:
