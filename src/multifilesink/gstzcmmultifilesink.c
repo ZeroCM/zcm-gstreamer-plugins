@@ -40,6 +40,10 @@
 #include <gst/video/gstvideosink.h>
 #include "gstzcmmultifilesink.h"
 
+#include "dirent.h"
+#include "libgen.h"
+#include "stdio.h"
+
 #include <sys/time.h>
 
 #include "zcmtypes/zcm_gstreamer_plugins/zcm_gstreamer_plugins_image_t.h"
@@ -285,6 +289,27 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
       break;
     case PROP_LOCATION:
       g_string_assign (zcmmultifilesink->location, g_value_get_string (value));
+      {
+          char* pattern = zcmmultifilesink->location->str;
+          char path[256];
+          strncpy(path, pattern, 255);
+          dirname(path);
+
+          int found;
+          DIR* dir;
+          struct dirent *ent;
+          dir = opendir(path);
+          if (dir) {
+              while ((ent = readdir(dir)) != NULL) {
+                  sscanf(ent->d_name, pattern, &found);
+                  if (found > zcmmultifilesink->nwrites)
+                      zcmmultifilesink->nwrites = found;
+              }
+              closedir(dir);
+          }
+          printf("Found existing files matching output pattern, starting from");
+          printf(pattern, zcmmultifilesink->nwrites);
+      }
       break;
     case PROP_PERIOD_US:
       pthread_mutex_lock(&zcmmultifilesink->mutex);
