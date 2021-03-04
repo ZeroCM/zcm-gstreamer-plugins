@@ -332,8 +332,8 @@ gst_zcm_multifilesink_set_property (GObject * object, guint property_id,
                       strcmp(ent->d_name, "..") == 0) continue;
 
                   sscanf(ent->d_name, sFmt, &found);
-                  if (found > zcmmultifilesink->nwrites) {
-                      zcmmultifilesink->nwrites = found;
+                  if (found >= zcmmultifilesink->nwrites) {
+                      zcmmultifilesink->nwrites = found + 1;
                   }
               }
               closedir(dir);
