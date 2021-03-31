@@ -1,11 +1,15 @@
 CFLAGS=`pkg-config --cflags gstreamer-1.0 gstreamer-video-1.0 zcm` -I build
 LIBS=`pkg-config --libs gstreamer-1.0 gstreamer-video-1.0 zcm`
+ZCMTYPE_LIB=-L$(WALDO_HOME)/zcm-gstreamer-plugins/build/zcmtypes -lzcmtypes
 
 ZCMGEN = zcm-gen -c --c-cpath build/zcmtypes --c-hpath build/zcmtypes --c-include zcmtypes --c-typeinfo
 
 $(shell mkdir -p build/imagesink build/snap build/multifilesink build/zcmtypes)
 
 test: all
+	@ln -sf gstzcmimagesink.so ./build/imagesink/libgstzcmimagesink.so
+	@ln -sf gstzcmsnap.so ./build/snap/libgstzcmsnap.so
+	@ln -sf gstzcmmultifilesink.so ./build/multifilesink/libgstzcmmultifilesink.so
 	@gst-inspect-1.0 ./build/imagesink/gstzcmimagesink.so
 	@gst-inspect-1.0 ./build/snap/gstzcmsnap.so
 	@gst-inspect-1.0 ./build/multifilesink/gstzcmmultifilesink.so
@@ -14,11 +18,11 @@ all: examples zcmtypes core
 
 core: zcmtypes
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/imagesink/gstzcmimagesink.o src/imagesink/gstzcmimagesink.c
-	@gcc -shared -o build/imagesink/gstzcmimagesink.so build/imagesink/gstzcmimagesink.o build/zcmtypes/libzcmtypes.so $(LIBS)
+	@gcc -shared -o build/imagesink/gstzcmimagesink.so build/imagesink/gstzcmimagesink.o $(ZCMTYPE_LIB) $(LIBS)
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/snap/gstzcmsnap.o src/snap/gstzcmsnap.c
-	@gcc -shared -o build/snap/gstzcmsnap.so build/snap/gstzcmsnap.o build/zcmtypes/libzcmtypes.so $(LIBS)
+	@gcc -shared -o build/snap/gstzcmsnap.so build/snap/gstzcmsnap.o $(ZCMTYPE_LIB) $(LIBS)
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c -o build/multifilesink/gstzcmmultifilesink.o src/multifilesink/gstzcmmultifilesink.c
-	@gcc -shared -o build/multifilesink/gstzcmmultifilesink.so build/multifilesink/gstzcmmultifilesink.o build/zcmtypes/libzcmtypes.so $(LIBS)
+	@gcc -shared -o build/multifilesink/gstzcmmultifilesink.so build/multifilesink/gstzcmmultifilesink.o $(ZCMTYPE_LIB) $(LIBS)
 
 debug: zcmtypes
 	@gcc -Wall -Werror -fPIC -g $(CFLAGS) -c -o build/imagesink/gstzcmimagesink.o src/imagesink/gstzcmimagesink.c
