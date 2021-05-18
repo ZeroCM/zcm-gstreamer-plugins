@@ -80,10 +80,13 @@ enum
     GRAY16_LE (zcm: LE_GRAY16)
     RGB16 (zcm: LE_RGB16)
 */
-#define VIDEO_SINK_CAPS \
+#define VIDEO_SINK_RAW_CAPS \
     GST_VIDEO_CAPS_MAKE("{ UYVY, YUY2, IYU1, IYU2, I420, NV12, GRAY8," \
                         "  RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \
                         "  RGB16 }")
+#define VIDEO_SINK_BAYER_CAPS \
+    "video/x-bayer,format=(string){bggr,grbg,gbrg,rggb}," \
+    "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX]"
 
 
 /* Private members */
@@ -122,12 +125,31 @@ gst_zcmimagesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
   zcmimagesink->img.height = info.height;
 
   GstVideoFormat pixelformat = GST_VIDEO_INFO_FORMAT(&info);
-  zcmimagesink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
+  zcmimagesink->img.pixelformat = gst_video_format_to_fourcc (pixelformat);
   if (zcmimagesink->img.pixelformat == 0) {
     switch (pixelformat) {
       case GST_VIDEO_FORMAT_RGBA:
         zcmimagesink->img.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA;
         break;
+      case GST_VIDEO_FORMAT_ENCODED: {
+          GstStructure *structure = gst_caps_get_structure (caps, 0);
+          const char *format = gst_structure_get_string (structure, "format");
+          if (g_str_equal (format, "bggr")) {
+            zcmimagesink->img.pixelformat =
+                ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BAYER_BGGR;
+          } else if (g_str_equal (format, "gbrg")) {
+            zcmimagesink->img.pixelformat =
+                ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BAYER_GBRG;
+          } else if (g_str_equal (format, "grbg")) {
+            zcmimagesink->img.pixelformat =
+                ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BAYER_GRBG;
+          } else if (g_str_equal (format, "rggb")) {
+            zcmimagesink->img.pixelformat =
+                ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BAYER_RGGB;
+          } else {
+            return FALSE;
+          }
+      }
       default:
         break;
     }
@@ -147,9 +169,11 @@ gst_zcmimagesink_class_init (GstZcmImageSinkClass * klass)
 
   /* Setting up pads and setting metadata should be moved to
      base_class_init if you intend to subclass this class. */
+  GstCaps *sinkCaps = gst_caps_from_string (VIDEO_SINK_RAW_CAPS);
+  gst_caps_append(sinkCaps, gst_caps_from_string (VIDEO_SINK_BAYER_CAPS));
   gst_element_class_add_pad_template (GST_ELEMENT_CLASS (klass),
-      gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-          gst_caps_from_string (VIDEO_SINK_CAPS)));
+      gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS, sinkCaps));
+  gst_caps_unref (sinkCaps);
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "ZcmImageSink", "Generic",

@@ -29,7 +29,9 @@ ENV GST_PLUGIN_PATH /zcm-gstreamer-plugins
 ENV LD_LIBRARY_PATH /usr/local/lib:/zcm-gstreamer-plugins/build/zcmtypes
 ENV ZCM_DEFAULT_URL ipc
 
-CMD (gst-launch-1.0 videotestsrc is-live=true ! zcmimagesink &) && \
+CMD (gst-launch-1.0 videotestsrc is-live=true ! \
+     'video/x-bayer, width=4032, height=3040, format=(string)rggb, framerate=(fraction)30/1' ! \
+     zcmimagesink &) && \
     (sleep 1 && \
      echo "Launched pipeline press enter to launch zcm-spy-lite" && \
      echo "Press ctrl+C when ready to exit" && \
