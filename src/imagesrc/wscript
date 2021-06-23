@@ -1,0 +1,17 @@
+#! /usr/bin/env python
+
+def build(ctx):
+
+    DEPS = ['default', 'zcm', 'gstreamer', 'gstreamer_video',
+            'zcm_gstreamer_plugins_zcmtypes_c_shlib']
+
+    source = ctx.path.ant_glob('**/*.c')
+    ctx.shlib(target   = 'gstzcmimagesrc',
+              use      = DEPS,
+              source   = source,
+              includes = [ ctx.env.ZCM_GSTREAMER_PLUGINS_ROOT ])
+
+    ctx(rule = 'cp ${SRC} ${TGT}',
+        source = 'libgstzcmimagesrc.so',
+        target = 'plugin/gstzcmimagesrc.so',
+        color = 'PINK')

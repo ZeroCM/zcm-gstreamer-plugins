@@ -4,11 +4,13 @@ TYPESLIB=-L build/zcmtypes -l zcmtypes
 
 ZCMGEN=zcm-gen -c --c-cpath build/zcmtypes --c-hpath build/zcmtypes --c-include zcmtypes --c-typeinfo
 
-$(shell mkdir -p build/imagesink build/snap build/multifilesink build/zcmtypes)
+$(shell mkdir -p build/imagesink build/imagesrc build/snap build/multifilesink build/zcmtypes)
 
 test: all
 	@LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:./build/zcmtypes/ \
 		gst-inspect-1.0 ./build/imagesink/gstzcmimagesink.so
+	@LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:./build/zcmtypes/ \
+		gst-inspect-1.0 ./build/imagesrc/gstzcmimagesrc.so
 	@LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:./build/zcmtypes/ \
 		gst-inspect-1.0 ./build/snap/gstzcmsnap.so
 	@LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:./build/zcmtypes/ \
@@ -22,6 +24,10 @@ core: zcmtypes
 	@gcc -shared -o build/imagesink/gstzcmimagesink.so \
 		build/imagesink/gstzcmimagesink.o $(TYPESLIB) $(LIBS)
 	@gcc -Wall -Werror -fPIC $(CFLAGS) -c \
+		-o build/imagesrc/gstzcmimagesrc.o src/imagesrc/gstzcmimagesrc.c
+	@gcc -shared -o build/imagesrc/gstzcmimagesrc.so \
+		build/imagesrc/gstzcmimagesrc.o $(TYPESLIB) $(LIBS)
+	@gcc -Wall -Werror -fPIC $(CFLAGS) -c \
 		-o build/snap/gstzcmsnap.o src/snap/gstzcmsnap.c
 	@gcc -shared -o build/snap/gstzcmsnap.so \
 		build/snap/gstzcmsnap.o $(TYPESLIB) $(LIBS)
@@ -30,11 +36,16 @@ core: zcmtypes
 	@gcc -shared -o build/multifilesink/gstzcmmultifilesink.so \
 		build/multifilesink/gstzcmmultifilesink.o $(TYPESLIB) $(LIBS)
 
+
 debug: zcmtypes
 	@gcc -Wall -Werror -fPIC -g $(CFLAGS) -c \
 		-o build/imagesink/gstzcmimagesink.o src/imagesink/gstzcmimagesink.c
 	@gcc -shared -g -o build/imagesink/gstzcmimagesink.so \
 		build/imagesink/gstzcmimagesink.o $(TYPESLIB) $(LIBS)
+	@gcc -Wall -Werror -fPIC -g $(CFLAGS) -c \
+		-o build/imagesrc/gstzcmimagesrc.o src/imagesrc/gstzcmimagesrc.c
+	@gcc -shared -g -o build/imagesrc/gstzcmimagesrc.so \
+		build/imagesrc/gstzcmimagesrc.o $(TYPESLIB) $(LIBS)
 	@gcc -Wall -Werror -fPIC -g $(CFLAGS) -c \
 		-o build/snap/gstzcmsnap.o src/snap/gstzcmsnap.c
 	@gcc -shared -g -o build/snap/gstzcmsnap.so \
@@ -43,6 +54,7 @@ debug: zcmtypes
 		-o build/multifilesink/gstzcmmultifilesink.o src/multifilesink/gstzcmmultifilesink.c
 	@gcc -shared -g -o build/multifilesink/gstzcmmultifilesink.so \
 		build/multifilesink/gstzcmmultifilesink.o $(TYPESLIB) $(LIBS)
+
 
 zcmtypes:
 	@$(ZCMGEN) src/zcmtypes/image_t.zcm
