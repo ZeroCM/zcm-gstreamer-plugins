@@ -25,7 +25,7 @@
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch-1.0 zcmimagesrc channel=GSTREAMER_DATA url=ipc silent=true do-timestamp=true ! videoconvert ! autovideosink
+ * gst-launch-1.0 zcmimagesrc channel=GSTREAMER_DATA url=ipc verbose=true do-timestamp=true ! videoconvert ! autovideosink
  * ]|
  * Receives frames over GSTREAMER_DATA channel
  * </refsect2>
@@ -56,23 +56,16 @@ GST_DEBUG_CATEGORY_STATIC (gst_zcmimagesrc_debug);
 enum
 {
     PROP_0,
-    PROP_SILENT,
+    PROP_VERBOSE,
     PROP_CHANNEL,
-    PROP_ZCM_URL,
-    LAST_SIGNAL
+    PROP_ZCM_URL
 };
 
-
-/* the capabilities of the inputs and outputs.
- *
- * describe the real formats here.
- */
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS_ANY
     );
-
 
 #define gst_zcmimagesrc_parent_class parent_class
 G_DEFINE_TYPE (GstZcmImageSrc, gst_zcmimagesrc, GST_TYPE_BASE_SRC);
@@ -82,7 +75,6 @@ static void gst_zcmimagesrc_set_property (GObject * object, guint prop_id,
 static void gst_zcmimagesrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-//static void DecCBFun(int nPort,char* pBuf,int nSize,FRAME_INFO * pFrameInfo, void* nReserved1,int nReserved2);
 static void gst_zcmimagesrc_init (GstZcmImageSrc * filter);
 
 static gboolean gst_zcmimagesrc_start (GstBaseSrc * basesrc);
@@ -94,7 +86,6 @@ static void gst_zcmimagesrc_finalize (GObject * object);
 static int  gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer);
 
 static GstStateChangeReturn gst_zcmimagesrc_change_state (GstElement * element, GstStateChange transition);
-
 
 /* GObject vmethod implementations */
 /* initialize the zcmimagesrc's class */
@@ -113,8 +104,8 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
     gobject_class->set_property = gst_zcmimagesrc_set_property;
     gobject_class->get_property = gst_zcmimagesrc_get_property;
 
-    g_object_class_install_property (gobject_class, PROP_SILENT,
-            g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
+    g_object_class_install_property (gobject_class, PROP_VERBOSE,
+            g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
                 FALSE, G_PARAM_READWRITE));
 
     g_object_class_install_property (gobject_class, PROP_ZCM_URL,
@@ -144,8 +135,6 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
     gstelement_class->change_state =  GST_DEBUG_FUNCPTR (gst_zcmimagesrc_change_state);
 }
 
-
-
 static void gst_zcmimagesrc_finalize (GObject * object)
 {
     G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -156,7 +145,7 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
 {
     GstZcmImageSrc *zcmimagesrc = (GstZcmImageSrc *)user;
     g_mutex_lock (zcmimagesrc->mutx);
-    if (zcmimagesrc->silent == FALSE)
+    if (zcmimagesrc->verbose == TRUE)
     {
         g_print ("got image %p\n", img);
         g_print ("image time %ld\n", img->utime);
@@ -166,7 +155,7 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
     }
     if (img->data != NULL)
     {
-        ZCMIMAGE_INFO * image_info = malloc (sizeof(ZCMIMAGE_INFO));
+        ZcmImageInfo * image_info = malloc (sizeof(ZcmImageInfo));
         image_info->width  = img->width;
         image_info->height = img->height;
         image_info->size   = img->size;
@@ -189,7 +178,7 @@ static gboolean zcm_source_init (GstZcmImageSrc *zcmimagesrc)
     zcmimagesrc->mutx =g_new(GMutex,1);
     g_mutex_init(zcmimagesrc->mutx);
     g_cond_init(zcmimagesrc->cond);
-    const char *channel =  zcmimagesrc->channel;//"GSTREAMER_DATA";
+    const char *channel =  zcmimagesrc->channel;
     zcmimagesrc->zcm = zcm_create(zcmimagesrc->zcm_url);
     if (!zcmimagesrc->zcm)
     {
@@ -201,8 +190,6 @@ static gboolean zcm_source_init (GstZcmImageSrc *zcmimagesrc)
     return TRUE;
 }
 
-
-
 static gboolean gst_zcmimagesrc_start (GstBaseSrc * basesrc)
 {
     GstZcmImageSrc *filter = (GstZcmImageSrc *) (basesrc);
@@ -210,12 +197,11 @@ static gboolean gst_zcmimagesrc_start (GstBaseSrc * basesrc)
     return TRUE;
 }
 
-
 /*
 static void zcm_source_stop (GstZcmImageSrc *filter)
 {
     g_mutex_lock (filter->mutx);
-    ZCMIMAGE_INFO * frames = g_queue_pop_tail(filter->buf_queue);
+    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
     while (frames)
     {
         free(frames->buf);
@@ -293,25 +279,21 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
 
 }
 
-
 static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     guint length, GstBuffer * buf)
 {
-
     GstMapInfo info;
     GstZcmImageSrc *filter = (GstZcmImageSrc *)src;
-    // gboolean key_frame = 0;
 
     gint64 endtime = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
     /* Waiting for buffer */
     g_mutex_lock (filter->mutx);
 
     /*Condition wait is done to sync with zcm image output*/
-
     g_cond_wait_until (filter->cond, filter->mutx, endtime);
 
-    ZCMIMAGE_INFO * frames = g_queue_pop_tail(filter->buf_queue);
-    if(frames == NULL)
+    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
+    if (frames == NULL)
     {
         g_print ("exceded waiting time to receive the frame\n");
         g_mutex_unlock (filter->mutx);
@@ -341,13 +323,11 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     gst_buffer_resize (buf,0,frames->size);
     gst_buffer_unmap (buf, &info);
 
-
     free(frames->buf);
     frames->buf=NULL;
     free(frames);
     g_mutex_unlock (filter->mutx);
     return GST_FLOW_OK;
-
 }
 
 /* initialize the new element
@@ -358,7 +338,7 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
 static void
 gst_zcmimagesrc_init (GstZcmImageSrc * filter)
 {
-    filter->silent = FALSE;
+    filter->verbose = FALSE;
     filter->channel = NULL;
     filter->status = GST_FLOW_OK;
     gst_base_src_set_blocksize (GST_BASE_SRC (filter), DEFAULT_BLOCKSIZE);
@@ -371,12 +351,11 @@ gst_zcmimagesrc_set_property (GObject * object, guint prop_id,
     GstZcmImageSrc *filter = GST_ZCMIMAGESRC (object);
 
     switch (prop_id) {
-        case PROP_SILENT:
-            filter->silent = g_value_get_boolean (value);
+        case PROP_VERBOSE:
+            filter->verbose = g_value_get_boolean (value);
             break;
         case PROP_CHANNEL:
             filter->channel = g_strdup (g_value_get_string (value));
-            //g_object_notify (G_OBJECT (filter), "channel");
             break;
         case PROP_ZCM_URL:
             filter->zcm_url = g_strdup (g_value_get_string (value));
@@ -393,8 +372,8 @@ gst_zcmimagesrc_get_property (GObject * object, guint prop_id,
 {
     GstZcmImageSrc *filter = GST_ZCMIMAGESRC (object);
     switch (prop_id) {
-        case PROP_SILENT:
-            g_value_set_boolean (value, filter->silent);
+        case PROP_VERBOSE:
+            g_value_set_boolean (value, filter->verbose);
             break;
         case PROP_CHANNEL:
             g_value_set_string (value, filter->channel);
@@ -464,16 +443,11 @@ zcmimagesrc_init (GstPlugin * zcmimagesrc)
 #define GST_PACKAGE_ORIGIN "https://github.com/ZeroCM/zcm-gstreamer-plugins"
 #endif
 
-
-/* gstreamer looks for this structure to register zcmimagesrc
- *
- * exchange the string 'Template zcmimagesrc' with your zcmimagesrc description
- */
 GST_PLUGIN_DEFINE (
     GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     zcmimagesrc,
-    "Receives images over zcm channels and passes them back to the pipeline",
+    "Receives images over zcm and passes them into the pipeline",
     zcmimagesrc_init,
     VERSION,
     "LGPL",

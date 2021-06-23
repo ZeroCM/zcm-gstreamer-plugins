@@ -3,6 +3,7 @@
 
 def build(ctx):
     ctx.recurse('imagesink')
-    ctx.recurse('snap')
+    ctx.recurse('imagesrc')
     ctx.recurse('multifilesink')
+    ctx.recurse('snap')
     ctx.recurse('zcmtypes')

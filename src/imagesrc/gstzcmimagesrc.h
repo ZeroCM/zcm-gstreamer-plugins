@@ -25,16 +25,7 @@ G_BEGIN_DECLS
 typedef struct _GstZcmImageSrc      GstZcmImageSrc;
 typedef struct _GstZcmImageSrcClass GstZcmImageSrcClass;
 
-typedef struct
-{
-   gchar       *filename;
-   guint       fd;
-   guint64     offset;
-   guint64     filesize;
-
-}FileInfo;
-
-typedef struct _ZCMIMAGE_INFO
+typedef struct _ZcmImageInfo
 {
     unsigned int       width;
     unsigned int       height;
@@ -43,7 +34,7 @@ typedef struct _ZCMIMAGE_INFO
     unsigned int       framerate_num;
     unsigned int       framerate_den;
     unsigned int       frame_type;
-}ZCMIMAGE_INFO;
+} ZcmImageInfo;
 
 
 struct _GstZcmImageSrc
@@ -52,8 +43,8 @@ struct _GstZcmImageSrc
     gchar           *channel;
     gchar           *zcm_url;
     GstPad          *sinkpad, *srcpad;
-    gboolean         silent;
-    ZCMIMAGE_INFO    frame_info;
+    gboolean         verbose;
+    ZcmImageInfo     frame_info;
     GstFlowReturn    status;
     GCond           *cond;
     GMutex          *mutx;
