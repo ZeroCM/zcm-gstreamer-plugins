@@ -2,4 +2,4 @@
 
 PKGS='libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev '
 
-sudo apt install $PKGS
+sudo apt install --no-install-recommends -yq $PKGS
