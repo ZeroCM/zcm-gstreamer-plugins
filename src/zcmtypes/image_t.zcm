@@ -15,40 +15,51 @@ struct image_t
     int32_t  size;
     byte     data[size];
 
-    const int32_t PIXEL_FORMAT_UYVY             = 1498831189;
-    const int32_t PIXEL_FORMAT_YUYV             = 1448695129;
-    const int32_t PIXEL_FORMAT_IYU1             = 827677001;
-    const int32_t PIXEL_FORMAT_IYU2             = 844454217;
-    const int32_t PIXEL_FORMAT_YUV420           = 842093913;
-    const int32_t PIXEL_FORMAT_YUV411P          = 1345401140;
-    const int32_t PIXEL_FORMAT_I420             = 808596553;
-    const int32_t PIXEL_FORMAT_NV12             = 842094158;
-    const int32_t PIXEL_FORMAT_GRAY             = 1497715271;
-    const int32_t PIXEL_FORMAT_RGB              = 859981650;
-    const int32_t PIXEL_FORMAT_BGR              = 861030210;
-    const int32_t PIXEL_FORMAT_RGBA             = 876758866;
-    const int32_t PIXEL_FORMAT_BGRA             = 877807426;
-    const int32_t PIXEL_FORMAT_BAYER_BGGR       = 825770306;
-    const int32_t PIXEL_FORMAT_BAYER_GBRG       = 844650584;
-    const int32_t PIXEL_FORMAT_BAYER_GRBG       = 861427800;
-    const int32_t PIXEL_FORMAT_BAYER_RGGB       = 878205016;
-    const int32_t PIXEL_FORMAT_BE_BAYER16_BGGR  = 826360386;
-    const int32_t PIXEL_FORMAT_BE_BAYER16_GBRG  = 843137602;
-    const int32_t PIXEL_FORMAT_BE_BAYER16_GRBG  = 859914818;
-    const int32_t PIXEL_FORMAT_BE_BAYER16_RGGB  = 876692034;
-    const int32_t PIXEL_FORMAT_LE_BAYER16_BGGR  = 826360396;
-    const int32_t PIXEL_FORMAT_LE_BAYER16_GBRG  = 843137612;
-    const int32_t PIXEL_FORMAT_LE_BAYER16_GRBG  = 859914828;
-    const int32_t PIXEL_FORMAT_LE_BAYER16_RGGB  = 876692044;
-    const int32_t PIXEL_FORMAT_MJPEG            = 1196444237;
-    const int32_t PIXEL_FORMAT_BE_GRAY16        = 357;
-    const int32_t PIXEL_FORMAT_LE_GRAY16        = 909199180;
-    const int32_t PIXEL_FORMAT_BE_RGB16         = 358;
-    const int32_t PIXEL_FORMAT_LE_RGB16         = 1279412050;
-    const int32_t PIXEL_FORMAT_BE_SIGNED_GRAY16 = 359;
-    const int32_t PIXEL_FORMAT_BE_SIGNED_RGB16  = 360;
-    const int32_t PIXEL_FORMAT_FLOAT_GRAY32     = 842221382;
-    const int32_t PIXEL_FORMAT_FLIR             = 1179404626;
+    // V4L2 Pixel formats: linux/videodev2.h (often found in /usr/include/)
+    // The following codes are decimal codes for the corresponding V4L2 pixel formats
+    // They are formed by bitpacking ASCII codes for 4 characters
+    //     "abcd" -> 'a' | ('b' << 8) | ('c' << 16) | ('d' << 24)
+    // (enum code from videodev2.h provided in comment)
+    const int32_t PIXEL_FORMAT_GRAY             = 0x59455247; // V4L2_PIX_FMT_GREY
+    const int32_t PIXEL_FORMAT_RGB              = 0x33424752; // V4L2_PIX_FMT_RGB24
+    const int32_t PIXEL_FORMAT_BGR              = 0x33524742; // V4L2_PIX_FMT_BGR24
+    const int32_t PIXEL_FORMAT_RGBA             = 0x34424752; // V4L2_PIX_FMT_RGB32
+    const int32_t PIXEL_FORMAT_BGRA             = 0x34524742; // V4L2_PIX_FMT_BGR32
+    const int32_t PIXEL_FORMAT_MJPEG            = 0x47504a4d; // V4L2_PIX_FMT_MJPEG
+    const int32_t PIXEL_FORMAT_UYVY             = 0x59565955; // V4L2_PIX_FMT_UYVY
+    const int32_t PIXEL_FORMAT_YUYV             = 0x56595559; // V4L2_PIX_FMT_YUYV
+    const int32_t PIXEL_FORMAT_YUV420           = 0x32315559; // V4L2_PIX_FMT_YUV420
+    const int32_t PIXEL_FORMAT_YUV411P          = 0x50313134; // V4L2_PIX_FMT_YUV411P
+    const int32_t PIXEL_FORMAT_NV12             = 0x3231564e; // V4L2_PIX_FMT_NV12
+    const int32_t PIXEL_FORMAT_BAYER_RGGB8      = 0x42474752; // V4L2_PIX_FMT_SRGGB8
+    const int32_t PIXEL_FORMAT_BAYER_BGGR8      = 0x31384142; // V4L2_PIX_FMT_SBGGR8
+    const int32_t PIXEL_FORMAT_BAYER_GRBG8      = 0x47425247; // V4L2_PIX_FMT_SGRBG8
+    const int32_t PIXEL_FORMAT_BAYER_GBRG8      = 0x47524247; // V4L2_PIX_FMT_SGBRG8
+    // GStreamer Pixel formats coming from gst/video/video-format.h (string codes provided)
+    const int32_t PIXEL_FORMAT_IYU1             = 0x31555949; // IYU1
+    const int32_t PIXEL_FORMAT_IYU2             = 0x32555949; // IYU2
+    const int32_t PIXEL_FORMAT_I420             = 0x30323449; // I420
+    //            PIXEL_FORMAT_X_BAYER_BGGR     = PIXEL_FORMAT_BAYER_BGGR8
+    const int32_t PIXEL_FORMAT_X_BAYER_GBRG     = 0x32585858; // XXX2
+    const int32_t PIXEL_FORMAT_X_BAYER_GRBG     = 0x33585858; // XXX3
+    const int32_t PIXEL_FORMAT_X_BAYER_RGGB     = 0x34585858; // XXX4
+    const int32_t PIXEL_FORMAT_BE_BAYER16_BGGR  = 0x31414242; // BBA1
+    const int32_t PIXEL_FORMAT_BE_BAYER16_GBRG  = 0x32414242; // BBA2
+    const int32_t PIXEL_FORMAT_BE_BAYER16_GRBG  = 0x33414242; // BBA3
+    const int32_t PIXEL_FORMAT_BE_BAYER16_RGGB  = 0x34414242; // BBA4
+    const int32_t PIXEL_FORMAT_LE_BAYER16_BGGR  = 0x3141424c; // LBA1
+    const int32_t PIXEL_FORMAT_LE_BAYER16_GBRG  = 0x3241424c; // LBA2
+    const int32_t PIXEL_FORMAT_LE_BAYER16_GRBG  = 0x3341424c; // LBA3
+    const int32_t PIXEL_FORMAT_LE_BAYER16_RGGB  = 0x3441424c; // LBA4
+    const int32_t PIXEL_FORMAT_BE_GRAY16        = 0x00000165; // e\x01\0\0
+    const int32_t PIXEL_FORMAT_LE_GRAY16        = 0x3631474c; // LG16
+    const int32_t PIXEL_FORMAT_BE_RGB16         = 0x00000166; // f\x01\0\0
+    const int32_t PIXEL_FORMAT_LE_RGB16         = 0x4c424752; // RGBL
+    const int32_t PIXEL_FORMAT_BE_SIGNED_GRAY16 = 0x00000167; // g\x01\0\0
+    const int32_t PIXEL_FORMAT_BE_SIGNED_RGB16  = 0x00000168; // h\x01\0\0
+    const int32_t PIXEL_FORMAT_FLOAT_GRAY32     = 0x32334746; // FG32
+    const int32_t PIXEL_FORMAT_FLIR             = 0x464c4952; // RILF
+    // Custom Values
     const int32_t PIXEL_FORMAT_INVALID          = -2;
     const int32_t PIXEL_FORMAT_ANY              = -1;
 }
