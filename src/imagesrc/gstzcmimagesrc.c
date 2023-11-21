@@ -232,7 +232,6 @@ static int
 gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer)
 {
     GstCaps *caps = NULL;
-    GstStructure *s = NULL;
 
     caps = (GstCaps *)gst_type_find_helper_for_buffer (GST_OBJECT (src),
                                                                 buffer, NULL);
@@ -243,9 +242,15 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
     if (caps)
     {
         caps = gst_caps_make_writable (caps);
-        s = gst_caps_get_structure (caps, 0);
-        int width_temp = 0;
-        gst_structure_get_int (s, "width", &width_temp);
+        //GstStructure *s = NULL;
+        //s = gst_caps_get_structure (caps, 0);
+        //int width_temp = 0;
+        //gst_structure_get_int (s, "width", &width_temp);
+    }
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
+    {
+        caps = gst_caps_new_empty_simple ("image/jpeg");
+        return 0;
     }
     else
     {
@@ -268,10 +273,12 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
         gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGBA", NULL);
     else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGRA)
         gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGRA", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "MJPEG", NULL);
     else
         return -1;
 
-    gst_caps_set_simple (caps, "framerate",GST_TYPE_FRACTION,  25, 1, NULL);
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 25, 1, NULL);
     gst_caps_set_simple (caps, "width", G_TYPE_INT, filter->frame_info.width,
             "height", G_TYPE_INT, filter->frame_info.height, NULL);
     gst_base_src_set_caps (src, caps);
@@ -304,11 +311,11 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
 
     if (filter->update_caps == TRUE)
     {
-        filter->frame_info.width =frames->width;
-        filter->frame_info.height =frames->height;
-        filter->frame_info.framerate_num =frames->framerate_num;
-        filter->frame_info.framerate_den =frames->framerate_den;
-        filter->frame_info.frame_type =frames->frame_type;
+        filter->frame_info.width = frames->width;
+        filter->frame_info.height = frames->height;
+        filter->frame_info.framerate_num = frames->framerate_num;
+        filter->frame_info.framerate_den = frames->framerate_den;
+        filter->frame_info.frame_type = frames->frame_type;
         if (gst_update_src_caps (src, filter,buf) == -1)
         {
             g_print ("frametype %d not supported", filter->frame_info.frame_type);
@@ -319,8 +326,8 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     }
 
     gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    memcpy(info.data ,frames->buf, frames->size);
-    gst_buffer_resize (buf,0,frames->size);
+    memcpy(info.data, frames->buf, frames->size);
+    gst_buffer_resize (buf, 0, frames->size);
     gst_buffer_unmap (buf, &info);
 
     free(frames->buf);
