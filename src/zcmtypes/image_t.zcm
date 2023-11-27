@@ -15,6 +15,13 @@ struct image_t
     int32_t  size;
     byte     data[size];
 
+    // Note that the pixel formats below represet various image / video formats supported
+    // by gstreamer. Many of these (though not all) overlap with those supported by V4L2.
+    // You can read more about supported formats at:
+    // https://gstreamer.freedesktop.org/documentation/plugin-development/advanced/media-types.html?gi-language=c
+    // https://gstreamer.freedesktop.org/documentation/video/video-format.html?gi-language=c#GstVideoFormat
+    // https://docs.kernel.org/userspace-api/media/v4l/pixfmt-intro.html
+
     // V4L2 Pixel formats: linux/videodev2.h (often found in /usr/include/)
     // The following codes are decimal codes for the corresponding V4L2 pixel formats
     // They are formed by bitpacking ASCII codes for 4 characters
