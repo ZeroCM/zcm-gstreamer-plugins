@@ -28,8 +28,10 @@ struct image_t
     //     "abcd" -> 'a' | ('b' << 8) | ('c' << 16) | ('d' << 24)
     // (enum code from videodev2.h provided in comment)
     const int32_t PIXEL_FORMAT_GRAY             = 0x59455247; // V4L2_PIX_FMT_GREY
+    const int32_t PIXEL_FORMAT_GRAY16           = 0x20363159; // V4L2_PIX_FMT_Y16
     const int32_t PIXEL_FORMAT_RGB              = 0x33424752; // V4L2_PIX_FMT_RGB24
     const int32_t PIXEL_FORMAT_BGR              = 0x33524742; // V4L2_PIX_FMT_BGR24
+    const int32_t PIXEL_FORMAT_RGB48            = 0x36424752; // V4L2_PIX_FMT_BGR48 (on experimental)
     const int32_t PIXEL_FORMAT_RGBA             = 0x34424752; // V4L2_PIX_FMT_RGB32
     const int32_t PIXEL_FORMAT_BGRA             = 0x34524742; // V4L2_PIX_FMT_BGR32
     const int32_t PIXEL_FORMAT_MJPEG            = 0x47504a4d; // V4L2_PIX_FMT_MJPEG
