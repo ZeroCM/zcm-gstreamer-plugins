@@ -242,19 +242,16 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
     if (caps)
     {
         caps = gst_caps_make_writable (caps);
+        // If we want to print / use any of this in the future
         //GstStructure *s = NULL;
         //s = gst_caps_get_structure (caps, 0);
         //int width_temp = 0;
         //gst_structure_get_int (s, "width", &width_temp);
-    }
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
-    {
-        caps = gst_caps_new_empty_simple ("image/jpeg");
-        return 0;
-    }
-    else
-    {
-        caps = gst_caps_new_empty_simple ("video/x-raw");
+    } else {
+        caps = gst_caps_new_empty_simple("video/x-raw");
+        //caps = gst_caps_new_full(gst_structure_new_empty("image/jpeg"),
+                                 //gst_structure_new_empty("video/x-raw"),
+                                 //NULL);
     }
 
 
