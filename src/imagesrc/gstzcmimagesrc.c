@@ -56,9 +56,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_zcmimagesrc_debug);
 enum
 {
     PROP_0,
-    PROP_VERBOSE,
     PROP_CHANNEL,
-    PROP_ZCM_URL
+    PROP_ZCM_URL,
+    PROP_VERBOSE,
 };
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -103,10 +103,6 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
     gobject_class->set_property = gst_zcmimagesrc_set_property;
     gobject_class->get_property = gst_zcmimagesrc_get_property;
 
-    g_object_class_install_property (gobject_class, PROP_VERBOSE,
-            g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
-                FALSE, G_PARAM_READWRITE));
-
     g_object_class_install_property (gobject_class, PROP_CHANNEL,
           g_param_spec_string ("channel", "Zcm publish channel",
               "Channel name to publish data to",
@@ -116,6 +112,10 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
            g_param_spec_string ("url", "Zcm transport url",
               "The full zcm url specifying the zcm transport to be used",
               "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property (gobject_class, PROP_VERBOSE,
+            g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
+                FALSE, G_PARAM_READWRITE));
 
     gst_element_class_set_details_simple(gstelement_class,
             "zcmimagesrc",
@@ -171,13 +171,13 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
 
 static gboolean zcm_source_init (GstZcmImageSrc *zcmimagesrc)
 {
-    zcmimagesrc->buf_queue= g_queue_new();
-    zcmimagesrc->update_caps= TRUE;
+    zcmimagesrc->buf_queue = g_queue_new();
+    zcmimagesrc->update_caps = TRUE;
     zcmimagesrc->cond = g_new(GCond,1);
-    zcmimagesrc->mutx =g_new(GMutex,1);
+    zcmimagesrc->mutx = g_new(GMutex,1);
     g_mutex_init(zcmimagesrc->mutx);
     g_cond_init(zcmimagesrc->cond);
-    const char *channel =  zcmimagesrc->channel;
+    const char *channel = zcmimagesrc->channel;
     zcmimagesrc->zcm = zcm_create(zcmimagesrc->zcm_url);
     if (!zcmimagesrc->zcm)
     {
@@ -196,9 +196,10 @@ static gboolean gst_zcmimagesrc_start (GstBaseSrc * basesrc)
     return TRUE;
 }
 
-/*
 static void zcm_source_stop (GstZcmImageSrc *filter)
 {
+// Putting this in causes a deadlock on a failed pipeline
+/*
     g_mutex_lock (filter->mutx);
     ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
     while (frames)
@@ -217,13 +218,13 @@ static void zcm_source_stop (GstZcmImageSrc *filter)
     g_free (filter->cond);
     zcm_stop(filter->zcm);
     zcm_destroy(filter->zcm);
-}
 */
+}
 
 static gboolean gst_zcmimagesrc_stop (GstBaseSrc * basesrc)
 {
-    // GstZcmImageSrc *filter = (GstZcmImageSrc *) (basesrc);
-    g_print ("stop called\n");
+    GstZcmImageSrc *filter = (GstZcmImageSrc *) (basesrc);
+    zcm_source_stop(filter);
     return TRUE;
 }
 
@@ -246,12 +247,17 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
         //s = gst_caps_get_structure (caps, 0);
         //int width_temp = 0;
         //gst_structure_get_int (s, "width", &width_temp);
+        if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG) {
+            gst_structure_set_name(gst_caps_get_structure(caps, 0), "image/jpeg");
+        } else {
+            gst_structure_set_name(gst_caps_get_structure(caps, 0), "video/x-raw");
+        }
+    } else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG) {
+        caps = gst_caps_new_empty_simple("image/jpeg");
     } else {
         caps = gst_caps_new_empty_simple("video/x-raw");
-        //caps = gst_caps_new_full(gst_structure_new_empty("image/jpeg"),
-                                 //gst_structure_new_empty("video/x-raw"),
-                                 //NULL);
     }
+
 
 
     /* typically we don't output buffers until we have properly parsed some
@@ -322,12 +328,12 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     }
 
     gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    memcpy(info.data, frames->buf, frames->size);
     gst_buffer_resize (buf, 0, frames->size);
+    memcpy(info.data, frames->buf, frames->size);
     gst_buffer_unmap (buf, &info);
 
     free(frames->buf);
-    frames->buf=NULL;
+    frames->buf = NULL;
     free(frames);
     g_mutex_unlock (filter->mutx);
     return GST_FLOW_OK;
@@ -355,14 +361,14 @@ gst_zcmimagesrc_set_property (GObject * object, guint prop_id,
     GstZcmImageSrc *filter = GST_ZCMIMAGESRC (object);
 
     switch (prop_id) {
-        case PROP_VERBOSE:
-            filter->verbose = g_value_get_boolean (value);
-            break;
         case PROP_CHANNEL:
             filter->channel = g_strdup (g_value_get_string (value));
             break;
         case PROP_ZCM_URL:
             filter->zcm_url = g_strdup (g_value_get_string (value));
+            break;
+        case PROP_VERBOSE:
+            filter->verbose = g_value_get_boolean (value);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
