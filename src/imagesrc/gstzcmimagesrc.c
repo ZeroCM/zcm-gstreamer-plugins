@@ -100,7 +100,6 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
     gstelement_class = (GstElementClass *) klass;
     gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
 
-
     gobject_class->set_property = gst_zcmimagesrc_set_property;
     gobject_class->get_property = gst_zcmimagesrc_get_property;
 
@@ -108,15 +107,15 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
             g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
                 FALSE, G_PARAM_READWRITE));
 
-    g_object_class_install_property (gobject_class, PROP_ZCM_URL,
-           g_param_spec_string ("url", "Zcm transport url",
-              "The full zcm url specifying the zcm transport to be used",
-              "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
     g_object_class_install_property (gobject_class, PROP_CHANNEL,
           g_param_spec_string ("channel", "Zcm publish channel",
               "Channel name to publish data to",
               "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    g_object_class_install_property (gobject_class, PROP_ZCM_URL,
+           g_param_spec_string ("url", "Zcm transport url",
+              "The full zcm url specifying the zcm transport to be used",
+              "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     gst_element_class_set_details_simple(gstelement_class,
             "zcmimagesrc",
@@ -299,7 +298,7 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
     if (frames == NULL)
     {
-        g_print ("exceded waiting time to receive the frame\n");
+        g_print ("exceeded waiting time to receive the frame\n");
         g_mutex_unlock (filter->mutx);
         if (filter->update_caps == TRUE)
             return GST_FLOW_ERROR;
@@ -343,7 +342,8 @@ static void
 gst_zcmimagesrc_init (GstZcmImageSrc * filter)
 {
     filter->verbose = FALSE;
-    filter->channel = NULL;
+    filter->channel = "GSTREAMER_DATA";
+    filter->zcm_url = NULL;
     filter->status = GST_FLOW_OK;
     gst_base_src_set_blocksize (GST_BASE_SRC (filter), DEFAULT_BLOCKSIZE);
 }
