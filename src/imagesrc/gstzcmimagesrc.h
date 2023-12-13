@@ -20,7 +20,6 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ZCMIMAGESRC))
 #define GST_IS_ZCMIMAGESRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ZCMIMAGESRC))
-#define G_QUEUE_INIT { NULL, NULL, 0 }
 
 typedef struct _GstZcmImageSrc      GstZcmImageSrc;
 typedef struct _GstZcmImageSrcClass GstZcmImageSrcClass;
@@ -45,11 +44,11 @@ struct _GstZcmImageSrc
     GstPad          *sinkpad, *srcpad;
     gboolean         verbose;
     ZcmImageInfo     frame_info;
+    ZcmImageInfo*    image_info;
     GstFlowReturn    status;
     GCond           *cond;
     GMutex          *mutx;
     gboolean         update_caps;
-    GQueue*          buf_queue;
     zcm_t *zcm;
 };
 

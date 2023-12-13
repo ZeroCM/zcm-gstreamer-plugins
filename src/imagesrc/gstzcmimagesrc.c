@@ -27,7 +27,7 @@
  * |[
  * gst-launch-1.0 zcmimagesrc channel=GSTREAMER_DATA url=ipc verbose=true do-timestamp=true ! videoconvert ! autovideosink
  * ]|
- * Receives frames over GSTREAMER_DATA channel
+ * Receives frame over GSTREAMER_DATA channel
  * </refsect2>
  */
 
@@ -154,16 +154,24 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
     }
     if (img->data != NULL)
     {
-        ZcmImageInfo * image_info = malloc (sizeof(ZcmImageInfo));
-        image_info->width  = img->width;
-        image_info->height = img->height;
-        image_info->size   = img->size;
-        image_info->framerate_num = 0;
-        image_info->framerate_den = 1;
-        image_info->frame_type =  img->pixelformat;
-        image_info->buf = malloc (img->size);
-        memcpy (image_info->buf, img->data, img->size);
-        g_queue_push_head (zcmimagesrc->buf_queue, image_info);
+        if (!zcmimagesrc->image_info) {
+            zcmimagesrc->image_info = (ZcmImageInfo*) calloc(1, sizeof(ZcmImageInfo));
+        }
+
+        zcmimagesrc->image_info->width  = img->width;
+        zcmimagesrc->image_info->height = img->height;
+
+        if (img->size != zcmimagesrc->image_info->size) {
+            zcmimagesrc->image_info->buf = realloc(zcmimagesrc->image_info->buf, img->size);
+            zcmimagesrc->image_info->size = img->size;
+        }
+        memcpy(zcmimagesrc->image_info->buf, img->data, img->size);
+
+        zcmimagesrc->image_info->framerate_num = 0;
+        zcmimagesrc->image_info->framerate_den = 1;
+
+        zcmimagesrc->image_info->frame_type = img->pixelformat;
+
         g_cond_broadcast(zcmimagesrc->cond);
     }
     g_mutex_unlock (zcmimagesrc->mutx);
@@ -171,7 +179,6 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
 
 static gboolean zcm_source_init (GstZcmImageSrc *zcmimagesrc)
 {
-    zcmimagesrc->buf_queue = g_queue_new();
     zcmimagesrc->update_caps = TRUE;
     zcmimagesrc->cond = g_new(GCond,1);
     zcmimagesrc->mutx = g_new(GMutex,1);
@@ -201,15 +208,12 @@ static void zcm_source_stop (GstZcmImageSrc *filter)
 // Putting this in causes a deadlock on a failed pipeline
 /*
     g_mutex_lock (filter->mutx);
-    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
-    while (frames)
-    {
-        free(frames->buf);
-        frames->buf=NULL;
-        free(frames);
-        frames = g_queue_pop_tail (filter->buf_queue);
+    if (filter->image_info) {
+        if (filter->image_info->buf) free(filter->image_info->buf);
+        filter->image_info->buf=NULL;
+        free(filter->image_info);
+        filter->image_info = NULL;
     }
-    g_queue_free (filter->buf_queue);
     g_mutex_unlock (filter->mutx);
 
     g_cond_clear (filter->cond);
@@ -301,8 +305,7 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     /*Condition wait is done to sync with zcm image output*/
     g_cond_wait_until (filter->cond, filter->mutx, endtime);
 
-    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
-    if (frames == NULL)
+    if (filter->image_info == NULL)
     {
         g_print ("exceeded waiting time to receive the frame\n");
         g_mutex_unlock (filter->mutx);
@@ -313,11 +316,11 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
 
     if (filter->update_caps == TRUE)
     {
-        filter->frame_info.width = frames->width;
-        filter->frame_info.height = frames->height;
-        filter->frame_info.framerate_num = frames->framerate_num;
-        filter->frame_info.framerate_den = frames->framerate_den;
-        filter->frame_info.frame_type = frames->frame_type;
+        filter->frame_info.width = filter->image_info->width;
+        filter->frame_info.height = filter->image_info->height;
+        filter->frame_info.framerate_num = filter->image_info->framerate_num;
+        filter->frame_info.framerate_den = filter->image_info->framerate_den;
+        filter->frame_info.frame_type = filter->image_info->frame_type;
         if (gst_update_src_caps (src, filter,buf) == -1)
         {
             g_print ("frametype %d not supported", filter->frame_info.frame_type);
@@ -328,13 +331,10 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     }
 
     gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    gst_buffer_resize (buf, 0, frames->size);
-    memcpy(info.data, frames->buf, frames->size);
+    gst_buffer_resize (buf, 0, filter->image_info->size);
+    memcpy(info.data, filter->image_info->buf, filter->image_info->size);
     gst_buffer_unmap (buf, &info);
 
-    free(frames->buf);
-    frames->buf = NULL;
-    free(frames);
     g_mutex_unlock (filter->mutx);
     return GST_FLOW_OK;
 }
