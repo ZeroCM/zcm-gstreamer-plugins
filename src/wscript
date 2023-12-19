@@ -2,8 +2,12 @@
 # encoding: utf-8
 
 def build(ctx):
+    ctx.recurse('zcmtypes')
+
+    if ctx.env.GSTREAMER_PLUGINS == False:
+        return
+
     ctx.recurse('imagesink')
     ctx.recurse('imagesrc')
     ctx.recurse('multifilesink')
     ctx.recurse('snap')
-    ctx.recurse('zcmtypes')
