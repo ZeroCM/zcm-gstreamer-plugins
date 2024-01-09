@@ -27,7 +27,7 @@
  * |[
  * gst-launch-1.0 zcmimagesrc channel=GSTREAMER_DATA url=ipc verbose=true do-timestamp=true ! videoconvert ! autovideosink
  * ]|
- * Receives frames over GSTREAMER_DATA channel
+ * Receives frame over GSTREAMER_DATA channel
  * </refsect2>
  */
 
@@ -56,9 +56,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_zcmimagesrc_debug);
 enum
 {
     PROP_0,
-    PROP_VERBOSE,
     PROP_CHANNEL,
-    PROP_ZCM_URL
+    PROP_ZCM_URL,
+    PROP_VERBOSE,
 };
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -100,23 +100,22 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
     gstelement_class = (GstElementClass *) klass;
     gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
 
-
     gobject_class->set_property = gst_zcmimagesrc_set_property;
     gobject_class->get_property = gst_zcmimagesrc_get_property;
 
-    g_object_class_install_property (gobject_class, PROP_VERBOSE,
-            g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
-                FALSE, G_PARAM_READWRITE));
+    g_object_class_install_property (gobject_class, PROP_CHANNEL,
+          g_param_spec_string ("channel", "Zcm publish channel",
+              "Channel name to publish data to",
+              "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
     g_object_class_install_property (gobject_class, PROP_ZCM_URL,
            g_param_spec_string ("url", "Zcm transport url",
               "The full zcm url specifying the zcm transport to be used",
               "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-    g_object_class_install_property (gobject_class, PROP_CHANNEL,
-          g_param_spec_string ("channel", "Zcm publish channel",
-              "Channel name to publish data to",
-              "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+    g_object_class_install_property (gobject_class, PROP_VERBOSE,
+            g_param_spec_boolean ("verbose", "Verbose", "Produce verbose output",
+                FALSE, G_PARAM_READWRITE));
 
     gst_element_class_set_details_simple(gstelement_class,
             "zcmimagesrc",
@@ -155,16 +154,24 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
     }
     if (img->data != NULL)
     {
-        ZcmImageInfo * image_info = malloc (sizeof(ZcmImageInfo));
-        image_info->width  = img->width;
-        image_info->height = img->height;
-        image_info->size   = img->size;
-        image_info->framerate_num = 0;
-        image_info->framerate_den = 1;
-        image_info->frame_type =  img->pixelformat;
-        image_info->buf = malloc (img->size);
-        memcpy (image_info->buf, img->data, img->size);
-        g_queue_push_head (zcmimagesrc->buf_queue, image_info);
+        if (!zcmimagesrc->image_info) {
+            zcmimagesrc->image_info = (ZcmImageInfo*) calloc(1, sizeof(ZcmImageInfo));
+        }
+
+        zcmimagesrc->image_info->width  = img->width;
+        zcmimagesrc->image_info->height = img->height;
+
+        if (img->size != zcmimagesrc->image_info->size) {
+            zcmimagesrc->image_info->buf = realloc(zcmimagesrc->image_info->buf, img->size);
+            zcmimagesrc->image_info->size = img->size;
+        }
+        memcpy(zcmimagesrc->image_info->buf, img->data, img->size);
+
+        zcmimagesrc->image_info->framerate_num = 0;
+        zcmimagesrc->image_info->framerate_den = 1;
+
+        zcmimagesrc->image_info->frame_type = img->pixelformat;
+
         g_cond_broadcast(zcmimagesrc->cond);
     }
     g_mutex_unlock (zcmimagesrc->mutx);
@@ -172,13 +179,12 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
 
 static gboolean zcm_source_init (GstZcmImageSrc *zcmimagesrc)
 {
-    zcmimagesrc->buf_queue= g_queue_new();
-    zcmimagesrc->update_caps= TRUE;
+    zcmimagesrc->update_caps = TRUE;
     zcmimagesrc->cond = g_new(GCond,1);
-    zcmimagesrc->mutx =g_new(GMutex,1);
+    zcmimagesrc->mutx = g_new(GMutex,1);
     g_mutex_init(zcmimagesrc->mutx);
     g_cond_init(zcmimagesrc->cond);
-    const char *channel =  zcmimagesrc->channel;
+    const char *channel = zcmimagesrc->channel;
     zcmimagesrc->zcm = zcm_create(zcmimagesrc->zcm_url);
     if (!zcmimagesrc->zcm)
     {
@@ -197,19 +203,17 @@ static gboolean gst_zcmimagesrc_start (GstBaseSrc * basesrc)
     return TRUE;
 }
 
-/*
 static void zcm_source_stop (GstZcmImageSrc *filter)
 {
+// Putting this in causes a deadlock on a failed pipeline
+/*
     g_mutex_lock (filter->mutx);
-    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
-    while (frames)
-    {
-        free(frames->buf);
-        frames->buf=NULL;
-        free(frames);
-        frames = g_queue_pop_tail (filter->buf_queue);
+    if (filter->image_info) {
+        if (filter->image_info->buf) free(filter->image_info->buf);
+        filter->image_info->buf=NULL;
+        free(filter->image_info);
+        filter->image_info = NULL;
     }
-    g_queue_free (filter->buf_queue);
     g_mutex_unlock (filter->mutx);
 
     g_cond_clear (filter->cond);
@@ -218,13 +222,13 @@ static void zcm_source_stop (GstZcmImageSrc *filter)
     g_free (filter->cond);
     zcm_stop(filter->zcm);
     zcm_destroy(filter->zcm);
-}
 */
+}
 
 static gboolean gst_zcmimagesrc_stop (GstBaseSrc * basesrc)
 {
-    // GstZcmImageSrc *filter = (GstZcmImageSrc *) (basesrc);
-    g_print ("stop called\n");
+    GstZcmImageSrc *filter = (GstZcmImageSrc *) (basesrc);
+    zcm_source_stop(filter);
     return TRUE;
 }
 
@@ -232,7 +236,6 @@ static int
 gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer)
 {
     GstCaps *caps = NULL;
-    GstStructure *s = NULL;
 
     caps = (GstCaps *)gst_type_find_helper_for_buffer (GST_OBJECT (src),
                                                                 buffer, NULL);
@@ -243,14 +246,22 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
     if (caps)
     {
         caps = gst_caps_make_writable (caps);
-        s = gst_caps_get_structure (caps, 0);
-        int width_temp = 0;
-        gst_structure_get_int (s, "width", &width_temp);
+        // If we want to print / use any of this in the future
+        //GstStructure *s = NULL;
+        //s = gst_caps_get_structure (caps, 0);
+        //int width_temp = 0;
+        //gst_structure_get_int (s, "width", &width_temp);
+        if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG) {
+            gst_structure_set_name(gst_caps_get_structure(caps, 0), "image/jpeg");
+        } else {
+            gst_structure_set_name(gst_caps_get_structure(caps, 0), "video/x-raw");
+        }
+    } else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG) {
+        caps = gst_caps_new_empty_simple("image/jpeg");
+    } else {
+        caps = gst_caps_new_empty_simple("video/x-raw");
     }
-    else
-    {
-        caps = gst_caps_new_empty_simple ("video/x-raw");
-    }
+
 
 
     /* typically we don't output buffers until we have properly parsed some
@@ -268,10 +279,12 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
         gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGBA", NULL);
     else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGRA)
         gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGRA", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "MJPEG", NULL);
     else
         return -1;
 
-    gst_caps_set_simple (caps, "framerate",GST_TYPE_FRACTION,  25, 1, NULL);
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 25, 1, NULL);
     gst_caps_set_simple (caps, "width", G_TYPE_INT, filter->frame_info.width,
             "height", G_TYPE_INT, filter->frame_info.height, NULL);
     gst_base_src_set_caps (src, caps);
@@ -292,10 +305,9 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     /*Condition wait is done to sync with zcm image output*/
     g_cond_wait_until (filter->cond, filter->mutx, endtime);
 
-    ZcmImageInfo * frames = g_queue_pop_tail(filter->buf_queue);
-    if (frames == NULL)
+    if (filter->image_info == NULL)
     {
-        g_print ("exceded waiting time to receive the frame\n");
+        g_print ("exceeded waiting time to receive the frame\n");
         g_mutex_unlock (filter->mutx);
         if (filter->update_caps == TRUE)
             return GST_FLOW_ERROR;
@@ -304,11 +316,11 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
 
     if (filter->update_caps == TRUE)
     {
-        filter->frame_info.width =frames->width;
-        filter->frame_info.height =frames->height;
-        filter->frame_info.framerate_num =frames->framerate_num;
-        filter->frame_info.framerate_den =frames->framerate_den;
-        filter->frame_info.frame_type =frames->frame_type;
+        filter->frame_info.width = filter->image_info->width;
+        filter->frame_info.height = filter->image_info->height;
+        filter->frame_info.framerate_num = filter->image_info->framerate_num;
+        filter->frame_info.framerate_den = filter->image_info->framerate_den;
+        filter->frame_info.frame_type = filter->image_info->frame_type;
         if (gst_update_src_caps (src, filter,buf) == -1)
         {
             g_print ("frametype %d not supported", filter->frame_info.frame_type);
@@ -319,13 +331,10 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     }
 
     gst_buffer_map (buf, &info, GST_MAP_WRITE);
-    memcpy(info.data ,frames->buf, frames->size);
-    gst_buffer_resize (buf,0,frames->size);
+    gst_buffer_resize (buf, 0, filter->image_info->size);
+    memcpy(info.data, filter->image_info->buf, filter->image_info->size);
     gst_buffer_unmap (buf, &info);
 
-    free(frames->buf);
-    frames->buf=NULL;
-    free(frames);
     g_mutex_unlock (filter->mutx);
     return GST_FLOW_OK;
 }
@@ -339,7 +348,8 @@ static void
 gst_zcmimagesrc_init (GstZcmImageSrc * filter)
 {
     filter->verbose = FALSE;
-    filter->channel = NULL;
+    filter->channel = "GSTREAMER_DATA";
+    filter->zcm_url = NULL;
     filter->status = GST_FLOW_OK;
     gst_base_src_set_blocksize (GST_BASE_SRC (filter), DEFAULT_BLOCKSIZE);
 }
@@ -351,14 +361,14 @@ gst_zcmimagesrc_set_property (GObject * object, guint prop_id,
     GstZcmImageSrc *filter = GST_ZCMIMAGESRC (object);
 
     switch (prop_id) {
-        case PROP_VERBOSE:
-            filter->verbose = g_value_get_boolean (value);
-            break;
         case PROP_CHANNEL:
             filter->channel = g_strdup (g_value_get_string (value));
             break;
         case PROP_ZCM_URL:
             filter->zcm_url = g_strdup (g_value_get_string (value));
+            break;
+        case PROP_VERBOSE:
+            filter->verbose = g_value_get_boolean (value);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

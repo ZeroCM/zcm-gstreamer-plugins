@@ -3,10 +3,12 @@
 import waflib
 
 def configure(ctx):
+    if ctx.env.GSTREAMER_PLUGINS == False:
+        return
+
     ctx.check_cfg(package='gstreamer-1.0', args='--cflags --libs', uselib_store='gstreamer')
     ctx.check_cfg(package='gstreamer-video-1.0', args='--cflags --libs',
                   uselib_store='gstreamer_video')
-    ctx.env.GSTREAMER_PLUGINS = True
 
 def build(ctx):
 

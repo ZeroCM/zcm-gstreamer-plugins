@@ -59,8 +59,8 @@ static GstFlowReturn gst_zcmimagesink_show_frame (GstVideoSink * video_sink,
 enum
 {
   PROP_0,
-  PROP_ZCM_URL,
   PROP_CHANNEL,
+  PROP_ZCM_URL,
 };
 
 /* pad templates */
@@ -82,8 +82,15 @@ enum
 */
 #define VIDEO_SINK_CAPS \
     GST_VIDEO_CAPS_MAKE("{ UYVY, YUY2, IYU1, IYU2, I420, NV12, GRAY8," \
-                        "  RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \
-                        "  RGB16 }")
+                        " RGB, BGR, RGBA, BGRA, GRAY16_BE, GRAY16_LE," \
+                        " RGB16 }")
+
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE(
+    "sink",
+    GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS(VIDEO_SINK_CAPS"; image/jpeg")
+);
 
 
 /* Private members */
@@ -120,11 +127,28 @@ gst_zcmimagesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
 
   zcmimagesink->img.width = info.width;
   zcmimagesink->img.height = info.height;
+  zcmimagesink->info = info;
 
   GstVideoFormat pixelformat = GST_VIDEO_INFO_FORMAT(&info);
+  if (pixelformat == GST_VIDEO_FORMAT_ENCODED) {
+      const gchar* name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+      if (!name) {
+        GST_DEBUG_OBJECT(zcmimagesink, "Could not get name of caps %" GST_PTR_FORMAT, caps);
+        return FALSE;
+      }
+      if (g_strcmp0(name, "image/jpeg") == 0) {
+        zcmimagesink->img.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG;
+      }
+      printf("pixelformat: %s\n", name);
+      return TRUE;
+  }
+
   zcmimagesink->img.pixelformat = gst_video_format_to_fourcc (GST_VIDEO_INFO_FORMAT(&info));
   if (zcmimagesink->img.pixelformat == 0) {
     switch (pixelformat) {
+      case GST_VIDEO_FORMAT_RGB:
+        zcmimagesink->img.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGB;
+        break;
       case GST_VIDEO_FORMAT_RGBA:
         zcmimagesink->img.pixelformat = ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA;
         break;
@@ -132,8 +156,6 @@ gst_zcmimagesink_setcaps (GstBaseSink * bsink, GstCaps * caps)
         break;
     }
   }
-
-  zcmimagesink->info = info;
 
   return TRUE;
 }
@@ -147,9 +169,8 @@ gst_zcmimagesink_class_init (GstZcmImageSinkClass * klass)
 
   /* Setting up pads and setting metadata should be moved to
      base_class_init if you intend to subclass this class. */
-  gst_element_class_add_pad_template (GST_ELEMENT_CLASS (klass),
-      gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-          gst_caps_from_string (VIDEO_SINK_CAPS)));
+  gst_element_class_add_pad_template(GST_ELEMENT_CLASS (klass),
+          gst_static_pad_template_get(&sink_template));
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS (klass),
       "ZcmImageSink", "Generic",
@@ -163,15 +184,15 @@ gst_zcmimagesink_class_init (GstZcmImageSinkClass * klass)
   gobject_class->finalize = gst_zcmimagesink_finalize;
   video_sink_class->show_frame = GST_DEBUG_FUNCPTR (gst_zcmimagesink_show_frame);
 
-  g_object_class_install_property (gobject_class, PROP_ZCM_URL,
-          g_param_spec_string ("url", "Zcm transport url",
-              "The full zcm url specifying the zcm transport to be used",
-              "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class, PROP_CHANNEL,
           g_param_spec_string ("channel", "Zcm publish channel",
               "Channel name to publish data to",
               "GSTREAMER_DATA", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_ZCM_URL,
+          g_param_spec_string ("url", "Zcm transport url",
+              "The full zcm url specifying the zcm transport to be used",
+              "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -192,12 +213,12 @@ gst_zcmimagesink_set_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (zcmimagesink, "set_property");
 
   switch (property_id) {
+    case PROP_CHANNEL:
+      g_string_assign (zcmimagesink->channel, g_value_get_string (value));
+      break;
     case PROP_ZCM_URL:
       g_string_assign (zcmimagesink->url, g_value_get_string (value));
       reinit_zcm(zcmimagesink);
-      break;
-    case PROP_CHANNEL:
-      g_string_assign (zcmimagesink->channel, g_value_get_string (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
