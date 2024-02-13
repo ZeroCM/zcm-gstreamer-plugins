@@ -16,7 +16,7 @@ RUN git clone https://github.com/ZeroCM/zcm.git
 RUN cd zcm && ./scripts/install-deps.sh && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 RUN cd zcm && \
-    ./waf configure --use-zmq --use-elf --use-ipc && \
+    ./waf configure --use-zmq --use-elf --use-ipc --use-ipcshm && \
     ./waf build && \
     sudo ./waf install
 
@@ -27,7 +27,7 @@ RUN cd zcm-gstreamer-plugins && make
 
 ENV GST_PLUGIN_PATH /zcm-gstreamer-plugins
 ENV LD_LIBRARY_PATH /usr/local/lib:/zcm-gstreamer-plugins/build/zcmtypes
-ENV ZCM_DEFAULT_URL ipc
+ENV ZCM_DEFAULT_URL ipcshm
 
 CMD (gst-launch-1.0 videotestsrc is-live=true ! zcmimagesink &) && \
     (sleep 1 && \
