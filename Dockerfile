@@ -16,7 +16,7 @@ RUN git clone https://github.com/ZeroCM/zcm.git
 RUN cd zcm && ./scripts/install-deps.sh && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 RUN cd zcm && \
-    ./waf configure --use-zmq --use-elf --use-ipc && \
+    ./waf configure --use-zmq --use-elf --use-ipc --use-ipcshm && \
     ./waf build && \
     sudo ./waf install
 
@@ -27,12 +27,13 @@ RUN cd zcm-gstreamer-plugins && make
 
 ENV GST_PLUGIN_PATH /zcm-gstreamer-plugins
 ENV LD_LIBRARY_PATH /usr/local/lib:/zcm-gstreamer-plugins/build/zcmtypes
-ENV ZCM_DEFAULT_URL ipc
+ENV ZCM_DEFAULT_URL ipcshm://gstreamer?mtu=1000000&depth=4
+ENV ZCM_SPY_LITE_PATH zcm-gstreamer-plugins/build/zcmtypes/libzcmtypes.so
 
 CMD (gst-launch-1.0 videotestsrc is-live=true ! zcmimagesink &) && \
     (sleep 1 && \
      echo "Launched pipeline press enter to launch zcm-spy-lite" && \
      echo "Press ctrl+C when ready to exit" && \
      read -p "" IGNORE) && \
-    zcm-spy-lite -p zcm-gstreamer-plugins/build/zcmtypes/libzcmtypes.so; \
+    zcm-spy-lite; \
     fg
