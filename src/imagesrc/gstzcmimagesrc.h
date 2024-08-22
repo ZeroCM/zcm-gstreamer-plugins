@@ -30,8 +30,6 @@ typedef struct _ZcmImageInfo
     unsigned int       height;
     unsigned char    * buf;
     unsigned int       size;
-    unsigned int       framerate_num;
-    unsigned int       framerate_den;
     unsigned int       frame_type;
 } ZcmImageInfo;
 
@@ -41,9 +39,9 @@ struct _GstZcmImageSrc
     GstBaseSrc       element;
     gchar           *channel;
     gchar           *zcm_url;
-    GstPad          *sinkpad, *srcpad;
     gboolean         verbose;
     ZcmImageInfo     frame_info;
+    gboolean         frame_info_valid;
     ZcmImageInfo*    image_info;
     GstFlowReturn    status;
     GCond           *cond;

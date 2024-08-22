@@ -61,10 +61,27 @@ enum
     PROP_VERBOSE,
 };
 
-static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
+static GstStaticPadTemplate img_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS_ANY
+    GST_STATIC_CAPS (        // the capabilities of the padtemplate
+        "image/jpeg, "
+        "width = [ 16, 4096 ], "
+        "height = [ 16, 4096 ], "
+        "framerate = [ 0/1, 2147483647/1 ], "
+    )
+    );
+
+static GstStaticPadTemplate vid_factory = GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS (        // the capabilities of the padtemplate
+        "video/x-raw, "
+        "format = { (string)I420, (string)RGB, (string)BGR, (string)RGBA, (string)BGRA, (string)MJPEG }, "
+        "width = [ 16, 4096 ], "
+        "height = [ 16, 4096 ], "
+        "framerate = [ 0/1, 2147483647/1 ]"
+    )
     );
 
 #define gst_zcmimagesrc_parent_class parent_class
@@ -83,7 +100,8 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     guint length, GstBuffer * buf);
 
 static void gst_zcmimagesrc_finalize (GObject * object);
-static int  gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer);
+static gboolean gst_set_src_caps (GstBaseSrc * src, GstCaps *caps);
+static gboolean gst_update_src_caps (GstBaseSrc * basesrc, GstBuffer *buffer);
 
 static GstStateChangeReturn gst_zcmimagesrc_change_state (GstElement * element, GstStateChange transition);
 
@@ -124,11 +142,14 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
             "LIN_H");
 
     gst_element_class_add_pad_template (gstelement_class,
-            gst_static_pad_template_get (&src_factory));
+            gst_static_pad_template_get (&vid_factory));
+    gst_element_class_add_pad_template (gstelement_class,
+            gst_static_pad_template_get (&img_factory));
 
     gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_zcmimagesrc_start);
     gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_zcmimagesrc_stop);
     gstbasesrc_class->fill = GST_DEBUG_FUNCPTR (gst_zcmimagesrc_fill);
+    gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_set_src_caps);
     gobject_class->finalize = gst_zcmimagesrc_finalize;
 
     gstelement_class->change_state =  GST_DEBUG_FUNCPTR (gst_zcmimagesrc_change_state);
@@ -166,9 +187,6 @@ static void zcm_image_handler(const zcm_recv_buf_t *rbuf, const char *channel,
             zcmimagesrc->image_info->size = img->size;
         }
         memcpy(zcmimagesrc->image_info->buf, img->data, img->size);
-
-        zcmimagesrc->image_info->framerate_num = 0;
-        zcmimagesrc->image_info->framerate_den = 1;
 
         zcmimagesrc->image_info->frame_type = img->pixelformat;
 
@@ -232,19 +250,74 @@ static gboolean gst_zcmimagesrc_stop (GstBaseSrc * basesrc)
     return TRUE;
 }
 
-static int
-gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer)
+static gboolean gst_set_src_caps (GstBaseSrc * src, GstCaps *caps)
 {
-    GstCaps *caps = NULL;
+    GstZcmImageSrc *filter = (GstZcmImageSrc *) (src);
 
+    /*
+    for (size_t i = 0; i < gst_caps_get_size(caps); i++) {
+        g_print("Caps: %s\n", gst_structure_to_string(gst_caps_get_structure(caps, i)));
+    }
+    // */
+
+    /* typically we don't output buffers until we have properly parsed some
+    * config data, so we should at least know about version.
+    * If not, it means it has been requested not to drop data, and
+    * upstream and/or app must know what they are doing ... */
+
+    if (filter->frame_info_valid != TRUE) {
+        return TRUE;
+    }
+
+    if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_I420)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "I420", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGB)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGB", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGR)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGR", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGBA", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGRA)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGRA", NULL);
+    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
+        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "MJPEG", NULL);
+    else
+        return FALSE;
+
+    GValue framerate_min = G_VALUE_INIT;
+    g_value_init(&framerate_min, GST_TYPE_FRACTION);
+    gst_value_set_fraction(&framerate_min, 0, 1);
+
+    GValue framerate_max = G_VALUE_INIT;
+    g_value_init(&framerate_max, GST_TYPE_FRACTION);
+    gst_value_set_fraction(&framerate_max, 2147483647, 1);
+
+    GValue framerate = G_VALUE_INIT;
+    g_value_init(&framerate, GST_TYPE_FRACTION_RANGE);
+    gst_value_set_fraction_range(&framerate, &framerate_min, &framerate_max);
+
+    gst_caps_set_value (caps, "framerate", &framerate);
+
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, filter->frame_info.width, NULL);
+    gst_caps_set_simple (caps, "height", G_TYPE_INT, filter->frame_info.height, NULL);
+
+    // RRR (Bendes): Actually set the caps on the src pad
+
+    return TRUE;
+
+}
+
+static gboolean gst_update_src_caps (GstBaseSrc * src, GstBuffer *buffer)
+{
+    GstZcmImageSrc *filter = (GstZcmImageSrc *) (src);
+
+    GstCaps *caps = NULL;
     caps = (GstCaps *)gst_type_find_helper_for_buffer (GST_OBJECT (src),
-                                                                buffer, NULL);
+                                                       buffer, NULL);
 
     /* carry over input caps as much as possible;
     * override with our own stuff */
-
-    if (caps)
-    {
+    if (caps) {
         caps = gst_caps_make_writable (caps);
         // If we want to print / use any of this in the future
         //GstStructure *s = NULL;
@@ -262,34 +335,7 @@ gst_update_src_caps (GstBaseSrc * src, GstZcmImageSrc *filter, GstBuffer *buffer
         caps = gst_caps_new_empty_simple("video/x-raw");
     }
 
-
-
-    /* typically we don't output buffers until we have properly parsed some
-    * config data, so we should at least know about version.
-    * If not, it means it has been requested not to drop data, and
-    * upstream and/or app must know what they are doing ... */
-
-    if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_I420)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "I420", NULL);
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGB)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGB", NULL);
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGR)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGR", NULL);
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_RGBA)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "RGBA", NULL);
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_BGRA)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "BGRA", NULL);
-    else if (filter->frame_info.frame_type == ZCM_GSTREAMER_PLUGINS_IMAGE_T_PIXEL_FORMAT_MJPEG)
-        gst_caps_set_simple (caps, "format", G_TYPE_STRING, "MJPEG", NULL);
-    else
-        return -1;
-
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 25, 1, NULL);
-    gst_caps_set_simple (caps, "width", G_TYPE_INT, filter->frame_info.width,
-            "height", G_TYPE_INT, filter->frame_info.height, NULL);
-    gst_base_src_set_caps (src, caps);
-    return 0;
-
+    return gst_base_src_set_caps (src, caps);
 }
 
 static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
@@ -318,10 +364,9 @@ static GstFlowReturn gst_zcmimagesrc_fill (GstBaseSrc * src, guint64 offset,
     {
         filter->frame_info.width = filter->image_info->width;
         filter->frame_info.height = filter->image_info->height;
-        filter->frame_info.framerate_num = filter->image_info->framerate_num;
-        filter->frame_info.framerate_den = filter->image_info->framerate_den;
         filter->frame_info.frame_type = filter->image_info->frame_type;
-        if (gst_update_src_caps (src, filter,buf) == -1)
+        filter->frame_info_valid = TRUE;
+        if (gst_update_src_caps (src, buf) == FALSE)
         {
             g_print ("frametype %d not supported", filter->frame_info.frame_type);
             return GST_FLOW_ERROR;
@@ -351,6 +396,8 @@ gst_zcmimagesrc_init (GstZcmImageSrc * filter)
     filter->channel = "GSTREAMER_DATA";
     filter->zcm_url = NULL;
     filter->status = GST_FLOW_OK;
+    filter->frame_info_valid = FALSE;
+    filter->image_info = NULL;
     gst_base_src_set_blocksize (GST_BASE_SRC (filter), DEFAULT_BLOCKSIZE);
 }
 
