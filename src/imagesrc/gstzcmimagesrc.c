@@ -61,9 +61,9 @@ enum
     PROP_VERBOSE,
 };
 
-static GstStaticPadTemplate img_factory = GST_STATIC_PAD_TEMPLATE ("src",
+static GstStaticPadTemplate img_factory = GST_STATIC_PAD_TEMPLATE ("src_0",
     GST_PAD_SRC,
-    GST_PAD_ALWAYS,
+    GST_PAD_SOMETIMES,
     GST_STATIC_CAPS (        // the capabilities of the padtemplate
         "image/jpeg, "
         "width = [ 16, 4096 ], "
@@ -72,9 +72,9 @@ static GstStaticPadTemplate img_factory = GST_STATIC_PAD_TEMPLATE ("src",
     )
     );
 
-static GstStaticPadTemplate vid_factory = GST_STATIC_PAD_TEMPLATE ("src",
+static GstStaticPadTemplate vid_factory = GST_STATIC_PAD_TEMPLATE ("src_1",
     GST_PAD_SRC,
-    GST_PAD_ALWAYS,
+    GST_PAD_SOMETIMES,
     GST_STATIC_CAPS (        // the capabilities of the padtemplate
         "video/x-raw, "
         "format = { (string)I420, (string)RGB, (string)BGR, (string)RGBA, (string)BGRA, (string)MJPEG }, "
@@ -142,9 +142,9 @@ gst_zcmimagesrc_class_init (GstZcmImageSrcClass * klass)
             "LIN_H");
 
     gst_element_class_add_pad_template (gstelement_class,
-            gst_static_pad_template_get (&vid_factory));
-    gst_element_class_add_pad_template (gstelement_class,
             gst_static_pad_template_get (&img_factory));
+    gst_element_class_add_pad_template (gstelement_class,
+            gst_static_pad_template_get (&vid_factory));
 
     gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_zcmimagesrc_start);
     gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_zcmimagesrc_stop);
@@ -250,9 +250,62 @@ static gboolean gst_zcmimagesrc_stop (GstBaseSrc * basesrc)
     return TRUE;
 }
 
+static gboolean print_field (GQuark field, const GValue * value, gpointer pfx)
+{
+  gchar *str = gst_value_serialize (value);
+
+  g_print ("%s  %15s: %s\n", (gchar *) pfx, g_quark_to_string (field), str);
+  g_free (str);
+  return TRUE;
+}
+
+static void print_caps (const GstCaps * caps, const gchar * pfx)
+{
+  guint i;
+
+  g_return_if_fail (caps != NULL);
+
+  if (gst_caps_is_any (caps)) {
+    g_print ("%sANY\n", pfx);
+    return;
+  }
+  if (gst_caps_is_empty (caps)) {
+    g_print ("%sEMPTY\n", pfx);
+    return;
+  }
+
+  for (i = 0; i < gst_caps_get_size (caps); i++) {
+    GstStructure *structure = gst_caps_get_structure (caps, i);
+
+    g_print ("%s%s\n", pfx, gst_structure_get_name (structure));
+    gst_structure_foreach (structure, print_field, (gpointer) pfx);
+  }
+}
+
 static gboolean gst_set_src_caps (GstBaseSrc * src, GstCaps *caps)
 {
     GstZcmImageSrc *filter = (GstZcmImageSrc *) (src);
+    GstElement *element = (GstElement *) (src);
+    GstCaps *outcaps;
+
+    GstPad *pad = gst_element_get_static_pad (element, "src");
+    if (!pad) {
+        g_printerr ("Could not retrieve pad 'src'\n");
+        return FALSE;
+    }
+    GstCaps *pad_caps = gst_pad_get_current_caps (pad);
+    if (!pad_caps) {
+        pad_caps = gst_pad_query_caps (pad, NULL);
+    }
+    g_print ("Caps for the src pad:\n");
+    print_caps (pad_caps, "  ");
+    pad_caps_struct = gst_caps_get_structure (pad_caps, 0);
+
+    outcaps = gst_caps_copy_nth (pad_caps, 0);
+    gst_caps_unref (pad_caps);
+    gst_pad_fixate_caps (filter->srcpad, outcaps);
+    if (!gst_pad_set_caps (filter->srcpad, outcaps))
+      return FALSE;
 
     /*
     for (size_t i = 0; i < gst_caps_get_size(caps); i++) {
@@ -301,7 +354,7 @@ static gboolean gst_set_src_caps (GstBaseSrc * src, GstCaps *caps)
     gst_caps_set_simple (caps, "width", G_TYPE_INT, filter->frame_info.width, NULL);
     gst_caps_set_simple (caps, "height", G_TYPE_INT, filter->frame_info.height, NULL);
 
-    // RRR (Bendes): Actually set the caps on the src pad
+    gst_pad_set_caps (pad, caps);
 
     return TRUE;
 
