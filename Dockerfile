@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND "noninteractive"
 RUN echo "Set disable_coredump false" > /etc/sudo.conf && \
     apt-get update && \
     apt-get install --no-install-recommends -yq \
-        sudo ca-certificates apt-utils make build-essential rsync mlocate git && \
+        sudo ca-certificates apt-utils make build-essential rsync plocate git && \
     ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 
 RUN apt-get install -yq \
