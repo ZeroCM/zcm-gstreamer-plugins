@@ -188,7 +188,7 @@ static void* pub_thread(void* usr)
   }
 
   if (photo) zcm_gstreamer_plugins_photo_t_destroy(photo);
-  g_string_free(channel, false);
+  g_string_free(channel, true);
 
   return NULL;
 }
